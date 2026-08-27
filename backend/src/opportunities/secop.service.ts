@@ -71,9 +71,14 @@ export class SecopService {
         ...(it.categorias_adicionales || '').split(','),
       ]
         .map((c) => (c || '').trim())
-        .filter((c) => c && c !== 'No definido')
+        .filter((c) => c && c !== 'No definido' && c !== 'UNSPECIFIED')
         .map(normalize);
-      const match = itemCodes.some((c) => codes.some((uc) => uc.startsWith(c.slice(0, 8)) || c.startsWith(uc)));
+      // Match por los primeros 4 dígitos (nivel segmento/familia): el dataset
+      // publica categorías de nivel superior (p.ej. 80101600) mientras el tenant
+      // configura códigos completos de 8 dígitos (p.ej. 80101601).
+      const match = itemCodes.some((c) =>
+        codes.some((uc) => uc.slice(0, 4) === c.slice(0, 4) || c.slice(0, 4) === uc.slice(0, 4)),
+      );
       if (!match) {
         skipped++;
         continue;
