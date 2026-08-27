@@ -1,0 +1,30 @@
+# Excluir del contexto de build del frontend
+node_modules
+.next
+dist
+build
+
+# Backend se construye por separado (contexto ./backend)
+backend/
+
+# OKF y documentos
+wiki/
+docs/
+*.pdf
+*.md
+!README.md
+
+# Entorno y secretos (nunca al contenedor)
+.env
+.env.*
+secrets/
+
+# Certificados
+certs/
+
+# Git
+.git
+.gitignore
+
+# n8n local
+n8n/
