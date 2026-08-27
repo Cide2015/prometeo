@@ -1,0 +1,39 @@
+# Dependencias
+node_modules/
+.next/
+dist/
+build/
+
+# Entorno
+.env
+.env.local
+.env.production
+.env.testing
+.env.bak.*
+
+# Secretos Docker
+secrets/*
+
+# Certificados
+certs/*.pem
+certs/*.key
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Base de datos local
+*.sqlite
+*.db
+
+# Prisma
+prisma/*.db
+
+# n8n
+n8n/
