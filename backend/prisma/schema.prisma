@@ -2,13 +2,13 @@
 // Multi-tenant con RLS (app.current_tenant_id). Modelo de datos del SRS v1.0.0-PROD.
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
-  previewFeatures = ["postgresqlExtensions"]
   extensions = [pgvector]
 }
 
