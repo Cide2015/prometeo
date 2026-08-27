@@ -25,13 +25,16 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=https://prometeo.cidesolutions.com
+        - NEXT_PUBLIC_ADMIN_API_URL=https://admin.cidesolutions.com/api
     restart: always
     expose:
       - "3000"
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_ADMIN_API_URL=${NEXT_PUBLIC_ADMIN_API_URL:-https://admin.cidesolutions.com/api}
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://backend:3001}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://prometeo.cidesolutions.com}
       - NEXT_PUBLIC_APP_NAME=Prometeo
     depends_on:
       - backend

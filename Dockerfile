@@ -10,6 +10,11 @@ RUN npx prisma generate || true
 # Etapa 2: Builder
 FROM node:18-alpine AS builder
 WORKDIR /app
+# URL pública del API inyectada en build (client components)
+ARG NEXT_PUBLIC_API_URL=https://prometeo.cidesolutions.com
+ARG NEXT_PUBLIC_ADMIN_API_URL=https://admin.cidesolutions.com/api
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_ADMIN_API_URL=$NEXT_PUBLIC_ADMIN_API_URL
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
