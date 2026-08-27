@@ -81,9 +81,10 @@ async function main() {
       nombre: 'Administrador Prometeo',
       rol: 'Admin',
       isActive: true,
+      mustChangePassword: true, // cambio obligatorio en primer ingreso
     },
   });
-  console.log('✔ Usuario admin creado:', user.email);
+  console.log('✔ Usuario admin creado:', user.email, '(cambio de contraseña obligatorio)');
 
   // 4. Perfiles UNSPSC
   for (const codigo of UNSPSC) {

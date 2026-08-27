@@ -35,14 +35,15 @@ model Tenant {
 }
 
 model User {
-  id           String   @id @default(uuid()) @db.Uuid
-  tenantId     String   @map("tenant_id") @db.Uuid
-  email        String
-  passwordHash String   @map("password_hash")
-  nombre       String
-  rol          String // Admin | Evaluador Técnico | Evaluador Financiero | Operador de Proyecto | Auditor
-  isActive     Boolean  @default(true) @map("is_active")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id                 String    @id @default(uuid()) @db.Uuid
+  tenantId           String    @map("tenant_id") @db.Uuid
+  email              String
+  passwordHash       String    @map("password_hash")
+  nombre             String
+  rol                String // Admin | Evaluador Técnico | Evaluador Financiero | Operador de Proyecto | Auditor
+  isActive           Boolean   @default(true) @map("is_active")
+  mustChangePassword Boolean   @default(true) @map("must_change_password")
+  createdAt          DateTime  @default(now()) @map("created_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 

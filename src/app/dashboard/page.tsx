@@ -28,27 +28,35 @@ export default function DashboardPage() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Filtros de negocio del usuario
+  const [filtroEntidad, setFiltroEntidad] = useState('');
+  const [filtroMin, setFiltroMin] = useState('');
+  const [filtroMax, setFiltroMax] = useState('');
+  const [filtroModalidad, setFiltroModalidad] = useState('');
+
   useEffect(() => {
-    // En este esqueleto el tenant se resuelve del setup (primer tenant)
-    fetch(`${API_URL}/api/setup/status`)
+    const token = localStorage.getItem('prometeo_token');
+    if (!token) return;
+    // Obtener tenant del usuario autenticado
+    fetch(`${API_URL}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then((d) => {
-        if (d.initialized) {
+        if (d.tenantId) {
           setTenantId(d.tenantId);
           loadData(d.tenantId);
-        } else {
-          setMessage('No hay empresa registrada. Ejecutar bootstrap.');
         }
       })
-      .catch(() => setMessage('Error conectando con el backend'));
+      .catch(() => {});
   }, []);
 
   async function loadData(tenant: string) {
     setLoading(true);
     try {
+      const params = new URLSearchParams({ tenantId: tenant });
+      if (filtroEntidad) params.set('entidad', filtroEntidad);
       const [s, o] = await Promise.all([
         fetch(`${API_URL}/api/opportunities/stats?tenantId=${tenant}`).then((r) => r.json()),
-        fetch(`${API_URL}/api/opportunities?tenantId=${tenant}`).then((r) => r.json()),
+        fetch(`${API_URL}/api/opportunities?${params}`).then((r) => r.json()),
       ]);
       setStats(s);
       setItems(o.items || []);
@@ -63,18 +71,28 @@ export default function DashboardPage() {
     setLoading(true);
     setMessage('');
     try {
+      const token = localStorage.getItem('prometeo_token');
       const res = await fetch(`${API_URL}/api/opportunities/sync`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ tenantId }),
       });
       const d = await res.json();
-      setMessage(`Sincronización SECOP: ${d.ingested || 0} nuevas, ${d.totalDisponibles || 0} disponibles.`);
+      if (!res.ok) {
+        setMessage(`Error: ${d.message || 'no se pudo sincronizar'}`);
+      } else {
+        setMessage(`Sincronización SECOP: ${d.ingested || 0} nuevas, ${d.totalDisponibles || 0} disponibles.`);
+      }
       loadData(tenantId);
     } catch {
       setMessage('Error sincronizando SECOP');
       setLoading(false);
     }
+  }
+
+  function aplicarFiltros(e: React.FormEvent) {
+    e.preventDefault();
+    loadData(tenantId);
   }
 
   const fmtCOP = (v?: string) => {
@@ -88,7 +106,7 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold">Inventario de Oportunidades</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Espejo de SECOP II vía Datos Abiertos (SODA API). Filtrado por UNSPSC de tu empresa.
+            Espejo de SECOP II vía Datos Abiertos (SODA API). Filtrado por tu configuración UNSPSC y filtros de negocio.
           </p>
         </div>
         <button
@@ -103,6 +121,54 @@ export default function DashboardPage() {
       {message && (
         <div className="mt-4 rounded-lg bg-sky-50 px-4 py-2 text-sm text-sky-800">{message}</div>
       )}
+
+      {/* Filtros del usuario */}
+      <form onSubmit={aplicarFiltros} className="mt-6 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-4">
+        <div>
+          <label className="block text-xs font-medium text-slate-500">Entidad</label>
+          <input
+            type="text"
+            value={filtroEntidad}
+            onChange={(e) => setFiltroEntidad(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+            placeholder="Buscar entidad..."
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-500">Cuantía mínima (COP)</label>
+          <input
+            type="number"
+            value={filtroMin}
+            onChange={(e) => setFiltroMin(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+            placeholder="50.000.000"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-500">Cuantía máxima (COP)</label>
+          <input
+            type="number"
+            value={filtroMax}
+            onChange={(e) => setFiltroMax(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+            placeholder="500.000.000"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-500">Modalidad</label>
+          <select
+            value={filtroModalidad}
+            onChange={(e) => setFiltroModalidad(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+          >
+            <option value="">Todas</option>
+            <option>Licitación Pública</option>
+            <option>Selección Abreviada</option>
+            <option>Mínima Cuantía</option>
+            <option>Contratación Directa</option>
+          </select>
+        </div>
+      </form>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-4">
         {[
@@ -126,13 +192,14 @@ export default function DashboardPage() {
               <th className="px-4 py-3">Objeto</th>
               <th className="px-4 py-3">Cuantía</th>
               <th className="px-4 py-3">Cierre</th>
+              <th className="px-4 py-3">Modalidad</th>
               <th className="px-4 py-3">Estado</th>
             </tr>
           </thead>
           <tbody>
             {items.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-slate-400">
+                <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
                   {loading ? 'Cargando...' : 'Sin oportunidades. Pulsa "Sincronizar SECOP II".'}
                 </td>
               </tr>
@@ -143,6 +210,7 @@ export default function DashboardPage() {
                 <td className="max-w-md truncate px-4 py-3 text-slate-600">{o.objeto || '—'}</td>
                 <td className="px-4 py-3">{fmtCOP(o.cuantiaCop)}</td>
                 <td className="px-4 py-3">{o.fechaCierre ? new Date(o.fechaCierre).toLocaleDateString('es-CO') : '—'}</td>
+                <td className="px-4 py-3">{o.metadataJson?.modalidad || '—'}</td>
                 <td className="px-4 py-3">
                   <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
                     {o.estado}

@@ -22,17 +22,10 @@ interface SecopProcess {
 export class SecopService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private getEndpoint(): string {
-    return 'https://www.datos.gov.co/resource/p6dx-8zbt.json';
-  }
-
   /**
-   * Ingiesta oportunidades SECOP II (SODA API) para un tenant,
-   * filtrando por los códigos UNSPSC configurados del tenant.
-   * Esquema real del dataset p6dx-8zbt (SECOP II Procesos):
-   *  - estado_del_procedimiento (estado del proceso)
-   *  - precio_base (cuantía)
-   *  - codigo_principal_de_categoria / categorias_adicionales (UNSPSC)
+   * Ingiesta oportunidades SECOP II (SODA API) para un tenant usando
+   * la configuración del tenant (endpoint, dataset, App Token y filtros)
+   * que el usuario define en Configuración → tab "API SECOP".
    */
   async ingest(tenantId: string): Promise<{ ingested: number; skipped: number }> {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
@@ -40,18 +33,29 @@ export class SecopService {
 
     const unspsc = await this.prisma.unspscProfile.findMany({ where: { tenantId } });
     const codes = unspsc.map((u) => u.codigoUnspsc);
-    if (codes.length === 0) return { ingested: 0, skipped: 0 };
 
-    // Consulta SOQL: procesos vigentes (Abierto o Publicado) con cuantía
-    const where = [
-      `estado_del_procedimiento in ('Abierto','Publicado')`,
-      `precio_base > 0`,
-    ].join(' AND ');
+    // Configuración del tenant (Módulo 7 → tab API SECOP)
+    const secopCfg = (tenant.configuracionesJson as any)?.secop || {};
+    const sodaEndpoint = secopCfg.sodaEndpoint || 'https://www.datos.gov.co/resource';
+    const dataset = secopCfg.datasets?.procesos || 'p6dx-8zbt';
+    const appToken = secopCfg.appToken || '';
+    const filtros = secopCfg.filtros || {};
 
-    const url = `${this.getEndpoint()}?$where=${encodeURIComponent(where)}&$limit=100&$order=precio_base DESC`;
+    const whereClauses: string[] = [];
+    // Estados vigentes configurados (default: Abierto/Publicado)
+    const estados = filtros.estados?.length ? filtros.estados : ['Abierto', 'Publicado'];
+    whereClauses.push(`estado_del_procedimiento in (${estados.map((e) => `'${e}'`).join(',')})`);
+    whereClauses.push(`precio_base > 0`);
+    if (filtros.cuantiaMin) whereClauses.push(`precio_base >= ${filtros.cuantiaMin}`);
+    if (filtros.cuantiaMax) whereClauses.push(`precio_base <= ${filtros.cuantiaMax}`);
+    if (filtros.departamento) whereClauses.push(`departamento_entidad='${filtros.departamento}'`);
+    if (filtros.modalidad) whereClauses.push(`modalidad_de_contratacion='${filtros.modalidad}'`);
+
+    const where = whereClauses.join(' AND ');
+    const url = `${sodaEndpoint}/${dataset}.json?$where=${encodeURIComponent(where)}&$limit=100&$order=precio_base DESC`;
     const res = await fetch(url, {
       headers: {
-        'X-App-Token': (tenant.configuracionesJson as any)?.secop?.appToken || '',
+        ...(appToken ? { 'X-App-Token': appToken } : {}),
         Accept: 'application/json',
       },
     });
@@ -73,11 +77,12 @@ export class SecopService {
         .map((c) => (c || '').trim())
         .filter((c) => c && c !== 'No definido' && c !== 'UNSPECIFIED')
         .map(normalize);
-      // Match por los primeros 4 dígitos (nivel segmento/familia): el dataset
-      // publica categorías de nivel superior (p.ej. 80101600) mientras el tenant
-      // configura códigos completos de 8 dígitos (p.ej. 80101601).
+
+      // Si el usuario configuró UNSPSC específicos, filtrar por ellos;
+      // si no, usar los perfiles del tenant. Match por primeros 4 dígitos.
+      const filterCodes = filtros.unspsc?.length ? filtros.unspsc : codes;
       const match = itemCodes.some((c) =>
-        codes.some((uc) => uc.slice(0, 4) === c.slice(0, 4) || c.slice(0, 4) === uc.slice(0, 4)),
+        filterCodes.some((uc) => uc.slice(0, 4) === c.slice(0, 4) || c.slice(0, 4) === uc.slice(0, 4)),
       );
       if (!match) {
         skipped++;
