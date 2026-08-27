@@ -3,16 +3,19 @@ import { PrismaService } from '../prisma/prisma.service';
 
 interface SecopProcess {
   referencia_del_proceso?: string;
-  nombre_de_la_entidad?: string;
+  entidad?: string;
+  departamento_entidad?: string;
+  ciudad_entidad?: string;
+  nombre_del_procedimiento?: string;
   descripcion_del_proceso?: string;
-  valor_del_contrato?: string | number;
-  fecha_de_publicacion_del_proceso?: string;
-  fecha_de_cierre_del_proceso?: string;
-  estado_del_proceso?: string;
-  codigos_unspsc?: string;
+  precio_base?: string | number;
+  fase?: string;
+  estado_del_procedimiento?: string;
   modalidad_de_contratacion?: string;
-  departamento?: string;
-  municipio?: string;
+  codigo_principal_de_categoria?: string;
+  categorias_adicionales?: string;
+  fecha_de_publicacion_del?: string;
+  urlproceso?: string;
 }
 
 @Injectable()
@@ -26,6 +29,10 @@ export class SecopService {
   /**
    * Ingiesta oportunidades SECOP II (SODA API) para un tenant,
    * filtrando por los códigos UNSPSC configurados del tenant.
+   * Esquema real del dataset p6dx-8zbt (SECOP II Procesos):
+   *  - estado_del_procedimiento (estado del proceso)
+   *  - precio_base (cuantía)
+   *  - codigo_principal_de_categoria / categorias_adicionales (UNSPSC)
    */
   async ingest(tenantId: string): Promise<{ ingested: number; skipped: number }> {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
@@ -35,13 +42,13 @@ export class SecopService {
     const codes = unspsc.map((u) => u.codigoUnspsc);
     if (codes.length === 0) return { ingested: 0, skipped: 0 };
 
-    // Consulta SOQL: procesos en presentación de ofertas con los primeros UNSPSC
+    // Consulta SOQL: procesos vigentes (Abierto o Publicado) con cuantía
     const where = [
-      `estado_del_proceso='Presentación de ofertas'`,
-      `valor_del_contrato > 0`,
+      `estado_del_procedimiento in ('Abierto','Publicado')`,
+      `precio_base > 0`,
     ].join(' AND ');
 
-    const url = `${this.getEndpoint()}?$where=${encodeURIComponent(where)}&$limit=100&$order=valor_del_contrato DESC`;
+    const url = `${this.getEndpoint()}?$where=${encodeURIComponent(where)}&$limit=100&$order=precio_base DESC`;
     const res = await fetch(url, {
       headers: {
         'X-App-Token': (tenant.configuracionesJson as any)?.secop?.appToken || '',
@@ -56,20 +63,25 @@ export class SecopService {
     let ingested = 0;
     let skipped = 0;
     for (const it of items) {
-      // Filtrar por UNSPSC del tenant
-      const itemCodes = (it.codigos_unspsc || '')
-        .split(',')
-        .map((c) => c.trim())
-        .filter(Boolean);
+      // Filtrar por UNSPSC del tenant (categoría principal + adicionales)
+      // Normalizar: el dataset usa formato "V1.80111500" → extraer los 8 dígitos
+      const normalize = (c: string) => c.replace(/^V\d+\./, '').slice(0, 8);
+      const itemCodes = [
+        it.codigo_principal_de_categoria,
+        ...(it.categorias_adicionales || '').split(','),
+      ]
+        .map((c) => (c || '').trim())
+        .filter((c) => c && c !== 'No definido')
+        .map(normalize);
       const match = itemCodes.some((c) => codes.some((uc) => uc.startsWith(c.slice(0, 8)) || c.startsWith(uc)));
       if (!match) {
         skipped++;
         continue;
       }
 
-      const cuantia = typeof it.valor_del_contrato === 'string'
-        ? parseFloat(it.valor_del_contrato.replace(/[^\d.-]/g, ''))
-        : Number(it.valor_del_contrato || 0);
+      const cuantia = typeof it.precio_base === 'string'
+        ? parseFloat(it.precio_base.replace(/[^\d.-]/g, ''))
+        : Number(it.precio_base || 0);
 
       const existing = await this.prisma.opportunity.findFirst({
         where: { tenantId, secopId: it.referencia_del_proceso || undefined },
@@ -84,17 +96,18 @@ export class SecopService {
         data: {
           tenantId,
           secopId: it.referencia_del_proceso,
-          entidad: it.nombre_de_la_entidad,
-          objeto: it.descripcion_del_proceso,
+          entidad: it.entidad,
+          objeto: it.descripcion_del_proceso || it.nombre_del_procedimiento,
           cuantiaCop: isNaN(cuantia) ? null : cuantia,
-          fechaCierre: it.fecha_de_cierre_del_proceso ? new Date(it.fecha_de_cierre_del_proceso) : null,
+          fechaCierre: it.fecha_de_publicacion_del ? new Date(it.fecha_de_publicacion_del) : null,
           estado: 'disponible',
           metadataJson: {
             unspsc: itemCodes,
             modalidad: it.modalidad_de_contratacion,
-            departamento: it.departamento,
-            municipio: it.municipio,
-            fechaPublicacion: it.fecha_de_publicacion_del_proceso,
+            departamento: it.departamento_entidad,
+            ciudad: it.ciudad_entidad,
+            fase: it.fase,
+            url: it.urlproceso,
           },
         },
       });
