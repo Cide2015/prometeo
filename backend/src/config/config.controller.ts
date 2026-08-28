@@ -95,6 +95,69 @@ export class ConfigController {
     };
   }
 
+  /** GET configuración de IA del tenant (patrón cide-ia-config: proveedor configurable) */
+  @Get('ia')
+  async getIa(@Headers('authorization') authorization: string) {
+    const { tenantId } = this.resolve(authorization);
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    const cfg = (tenant?.configuracionesJson as any)?.ia || {};
+    const mask = (k?: string) => (k ? k.slice(0, 4) + '***' + k.slice(-4) : undefined);
+    return {
+      defaultProvider: cfg.defaultProvider || 'openrouter',
+      openrouterModel: cfg.openrouterModel || 'default',
+      geminiModel: cfg.geminiModel || 'gemini-2.5-flash',
+      openrouterApiKeySet: !!cfg.openrouterApiKey,
+      geminiApiKeySet: !!cfg.geminiApiKey,
+      openrouterApiKeyMasked: mask(cfg.openrouterApiKey),
+      geminiApiKeyMasked: mask(cfg.geminiApiKey),
+    };
+  }
+
+  /** PUT configuración de IA del tenant (keys enmascaradas: no se sobrescriben con ***) */
+  @Put('ia')
+  async saveIa(
+    @Headers('authorization') authorization: string,
+    @Body() body: {
+      defaultProvider?: string;
+      openrouterModel?: string;
+      geminiModel?: string;
+      openrouterApiKey?: string;
+      geminiApiKey?: string;
+    },
+  ) {
+    const { tenantId } = this.resolve(authorization);
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) throw new UnauthorizedException('Tenant no encontrado');
+
+    const configs = (tenant.configuracionesJson as any) || {};
+    const currentIa = configs.ia || {};
+
+    // Solo sobrescribir la key si NO trae la máscara ***
+    const nextOpenrouter = body.openrouterApiKey && !body.openrouterApiKey.includes('***')
+      ? body.openrouterApiKey
+      : currentIa.openrouterApiKey;
+    const nextGemini = body.geminiApiKey && !body.geminiApiKey.includes('***')
+      ? body.geminiApiKey
+      : currentIa.geminiApiKey;
+
+    await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: {
+        configuracionesJson: {
+          ...configs,
+          ia: {
+            defaultProvider: body.defaultProvider || currentIa.defaultProvider || 'openrouter',
+            openrouterModel: body.openrouterModel || currentIa.openrouterModel || 'default',
+            geminiModel: body.geminiModel || currentIa.geminiModel || 'gemini-2.5-flash',
+            openrouterApiKey: nextOpenrouter,
+            geminiApiKey: nextGemini,
+          },
+        },
+      },
+    });
+    return { success: true, message: 'Configuración de IA guardada' };
+  }
+
   private resolve(authorization: string): { userId: string; tenantId: string } {
     if (!authorization?.startsWith('Bearer ')) {
       throw new UnauthorizedException('Token no proporcionado');

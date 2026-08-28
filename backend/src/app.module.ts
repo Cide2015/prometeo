@@ -7,6 +7,11 @@ import { AuthModule } from './auth/auth.module';
 import { OpportunitiesModule } from './opportunities/opportunities.module';
 import { SetupModule } from './setup/setup.module';
 import { ConfigModule } from './config/config.module';
+import { RfiRfpModule } from './rfi-rfp/rfi-rfp.module';
+import { AnalysisModule } from './analysis/analysis.module';
+import { BidsModule } from './bids/bids.module';
+import { ProjectsModule } from './projects/projects.module';
+import { FinancieroModule } from './financiero/financiero.module';
 
 @Module({
   imports: [
@@ -23,6 +28,11 @@ import { ConfigModule } from './config/config.module';
     OpportunitiesModule,
     SetupModule,
     ConfigModule,
+    RfiRfpModule,
+    AnalysisModule,
+    BidsModule,
+    ProjectsModule,
+    FinancieroModule,
   ],
 })
 export class AppModule {}

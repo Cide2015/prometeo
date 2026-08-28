@@ -25,6 +25,10 @@ model Tenant {
   unspscProfiles UnspscProfile[]
   opportunities  Opportunity[]
   bids           Bid[]
+  rfiRfps        RfiRfp[]
+  analyses       Analysis[]
+  milestones     ProjectMilestone[]
+  contractDocuments ContractDocument[]
   contractProjects ContractProject[]
   financialLedgers FinancialLedger[]
   apiKeys        ApiKey[]
@@ -82,6 +86,7 @@ model Opportunity {
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   bids   Bid[]
+  analyses Analysis[]
 
   @@index([tenantId, estado])
   @@index([secopId])
@@ -93,7 +98,8 @@ model Opportunity {
 model Bid {
   id            String   @id @default(uuid()) @db.Uuid
   tenantId      String   @map("tenant_id") @db.Uuid
-  opportunityId String   @map("opportunity_id") @db.Uuid
+  opportunityId String?  @map("opportunity_id") @db.Uuid
+  rfiRfpId      String?  @map("rfi_rfp_id") @db.Uuid
   faseFunnel    String   @default("borrador") @map("fase_funnel") // borrador | analisis | documental | firma | presentada
   valorOfertado Decimal? @map("valor_ofertado") @db.Decimal(18, 2)
   margenEstimado Decimal? @map("margen_estimado") @db.Decimal(5, 2)
@@ -102,7 +108,9 @@ model Bid {
   createdAt     DateTime @default(now()) @map("created_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  rfiRfp    RfiRfp?  @relation(fields: [rfiRfpId], references: [id], onDelete: SetNull)
+  analysis  Analysis?
   contractProjects ContractProject[]
 
   @@index([tenantId, faseFunnel])
@@ -125,6 +133,8 @@ model ContractProject {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   bid    Bid     @relation(fields: [bidId], references: [id], onDelete: Cascade)
   ledgers FinancialLedger[]
+  milestones ProjectMilestone[]
+  documents ContractDocument[]
 
   @@index([tenantId])
   @@map("contract_projects")
@@ -198,4 +208,89 @@ model DocumentLibrary {
 
   @@index([tenantId])
   @@map("document_library")
+}
+
+// ===== Módulo 2: Invitaciones RFI/RFP =====
+
+model RfiRfp {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  entidad       String
+  emailOrigen   String?  @map("email_origen")
+  asunto        String
+  descripcion   String?  @db.Text
+  fechaRecibido DateTime @default(now()) @map("fecha_recibido")
+  fechaLimite   DateTime? @map("fecha_limite")
+  estado        String   @default("recibida") // recibida | aplicada | rechazada | cotizada
+  motivoRechazo String?  @map("motivo_rechazo")
+  documentosUrl Json?    @map("documentos_url") @db.JsonB
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  bids   Bid[]
+
+  @@index([tenantId, estado])
+  @@map("rfi_rfp")
+}
+
+// ===== Módulo 3: Análisis IA (Go/No-Go) =====
+
+model Analysis {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  opportunityId    String?  @map("opportunity_id") @db.Uuid
+  rfiRfpId         String?  @map("rfi_rfp_id") @db.Uuid
+  requisitosJson   Json?    @map("requisitos_json") @db.JsonB
+  financieroJson   Json?    @map("financiero_json") @db.JsonB
+  costosJson       Json?    @map("costos_json") @db.JsonB
+  pWin             Decimal? @map("p_win") @db.Decimal(5, 2)
+  decision         String   @default("pendiente") // pendiente | go | nogo
+  justificacion    String?  @db.Text
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  rfiRfp      RfiRfp?      @relation(fields: [rfiRfpId], references: [id], onDelete: SetNull)
+  bid         Bid?
+
+  @@index([tenantId])
+  @@map("analyses")
+}
+
+// ===== Módulo 5: Hitos y entregables de proyectos =====
+
+model ProjectMilestone {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  projectId String   @map("project_id") @db.Uuid
+  nombre    String
+  fechaPrevista DateTime? @map("fecha_prevista")
+  fechaReal DateTime? @map("fecha_real")
+  estado    String   @default("pendiente") // pendiente | en_progreso | completado
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant  Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project ContractProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, projectId])
+  @@map("project_milestones")
+}
+
+// ===== Módulo 5: Documentos contractuales (actas, informes) =====
+
+model ContractDocument {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  projectId String   @map("project_id") @db.Uuid
+  tipo      String   // acta_inicio | acta_parcial | informe_supervision | acta_liquidacion
+  nombre    String
+  url       String
+  fecha     DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant  Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project ContractProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, projectId])
+  @@map("contract_documents")
 }
