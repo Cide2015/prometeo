@@ -116,4 +116,16 @@ export class FinancieroController {
       nota: 'Tarifas referenciales; la configuración real por entidad territorial se define en Módulo 7.',
     };
   }
+
+  private resolve(authorization: string): { userId: string; tenantId: string } {
+    if (!authorization?.startsWith('Bearer ')) {
+      throw new UnauthorizedException('Token no proporcionado');
+    }
+    try {
+      const payload = this.jwt.verify(authorization.slice(7));
+      return { userId: payload.sub, tenantId: payload.tenantId };
+    } catch {
+      throw new UnauthorizedException('Token inválido o expirado');
+    }
+  }
 }
