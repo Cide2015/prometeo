@@ -228,6 +228,7 @@ model RfiRfp {
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   bids   Bid[]
+  analyses Analysis[]
 
   @@index([tenantId, estado])
   @@map("rfi_rfp")
@@ -240,6 +241,7 @@ model Analysis {
   tenantId         String   @map("tenant_id") @db.Uuid
   opportunityId    String?  @map("opportunity_id") @db.Uuid
   rfiRfpId         String?  @map("rfi_rfp_id") @db.Uuid
+  bidId            String?  @unique @map("bid_id") @db.Uuid
   requisitosJson   Json?    @map("requisitos_json") @db.JsonB
   financieroJson   Json?    @map("financiero_json") @db.JsonB
   costosJson       Json?    @map("costos_json") @db.JsonB
@@ -251,7 +253,7 @@ model Analysis {
   tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
   rfiRfp      RfiRfp?      @relation(fields: [rfiRfpId], references: [id], onDelete: SetNull)
-  bid         Bid?
+  bid         Bid?         @relation(fields: [bidId], references: [id], onDelete: SetNull)
 
   @@index([tenantId])
   @@map("analyses")
