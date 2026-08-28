@@ -109,4 +109,16 @@ export class RfiRfpController {
       ].join('\n'),
     };
   }
+
+  private resolve(authorization: string): { userId: string; tenantId: string } {
+    if (!authorization?.startsWith('Bearer ')) {
+      throw new UnauthorizedException('Token no proporcionado');
+    }
+    try {
+      const payload = this.jwt.verify(authorization.slice(7));
+      return { userId: payload.sub, tenantId: payload.tenantId };
+    } catch {
+      throw new UnauthorizedException('Token inválido o expirado');
+    }
+  }
 }
