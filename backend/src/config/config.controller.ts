@@ -102,6 +102,53 @@ export class ConfigController {
 
   /** ===== TAB API SECOP ===== */
 
+  /** Valida la conexión con Datos Abiertos (endpoint + dataset) — online/offline */
+  @Get('secop/test')
+  async testSecopConnection(@Headers('authorization') authorization: string) {
+    const { tenantId } = this.resolve(authorization);
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    const cfg = (tenant?.configuracionesJson as any)?.secop || {};
+    const endpoint = cfg.sodaEndpoint || 'https://www.datos.gov.co/resource';
+    const dataset = cfg.datasets?.procesos || 'p6dx-8zbt';
+    const appToken = cfg.appToken || '';
+
+    const inicio = Date.now();
+    try {
+      const url = `${endpoint}/${dataset}.json?$limit=1`;
+      const res = await fetch(url, {
+        headers: { ...(appToken ? { 'X-App-Token': appToken } : {}), Accept: 'application/json' },
+      });
+      const latencia = Date.now() - inicio;
+      if (!res.ok) {
+        return {
+          online: false,
+          message: `El dataset respondió con error ${res.status}. Revisa el endpoint y dataset configurados.`,
+          endpoint: url,
+          latenciaMs: latencia,
+          estado: 'offline',
+        };
+      }
+      const data = await res.json();
+      const items = Array.isArray(data) ? data : [];
+      return {
+        online: true,
+        message: 'Conexión exitosa con Datos Abiertos Colombia.',
+        endpoint: url,
+        latenciaMs: latencia,
+        estado: 'online',
+        procesosDisponibles: items.length >= 1 ? 'verificable' : 0,
+        appTokenSet: !!appToken,
+      };
+    } catch (e: any) {
+      return {
+        online: false,
+        message: `No se pudo conectar: ${e?.message || 'error desconocido'}`,
+        latenciaMs: Date.now() - inicio,
+        estado: 'offline',
+      };
+    }
+  }
+
   @Get('secop')
   async getSecop(@Headers('authorization') authorization: string) {
     const { tenantId } = this.resolve(authorization);

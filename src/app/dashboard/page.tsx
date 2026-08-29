@@ -35,7 +35,7 @@ export default function DashboardPage() {
   const [filtroMax, setFiltroMax] = useState('');
   const [filtroModalidad, setFiltroModalidad] = useState('');
   const [filtroDepto, setFiltroDepto] = useState('');
-  const [useEspejo, setUseEspejo] = useState(false);
+  const [useEspejo, setUseEspejo] = useState(true);
 
   useEffect(() => {
     const token = localStorage.getItem('prometeo_token');
@@ -115,7 +115,8 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold">Inventario de Oportunidades</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Espejo de SECOP II vía Datos Abiertos (SODA API). Filtrado por tu configuración UNSPSC y filtros de negocio.
+            Espejo de SECOP II vía Datos Abiertos (SODA API). Muestra las oportunidades que coinciden con tus <b>Áreas de Interés</b>
+            (códigos UNSPSC) — este es el segundo paso del flujo: <b>Registro → Áreas de Interés → Inventario → Análisis → Ofertas → Ganadas → Financiero</b>.
           </p>
         </div>
         <div className="flex items-center gap-3">

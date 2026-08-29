@@ -13,7 +13,7 @@ const ROLES = [
 ];
 
 export default function ConfiguracionPage() {
-  const [tab, setTab] = useState<'empresa' | 'secop' | 'ia' | 'usuarios' | 'api'>('empresa');
+  const [tab, setTab] = useState<'empresa' | 'secop' | 'areas' | 'ia' | 'usuarios' | 'api'>('empresa');
 
   // ===== TAB EMPRESA =====
   const [empresa, setEmpresa] = useState<any>(null);
@@ -31,6 +31,11 @@ export default function ConfiguracionPage() {
   // Áreas de interés (perfiles) + UNSPSC
   const [areas, setAreas] = useState<any[]>([]);
   const [unspscSeleccionados, setUnspscSeleccionados] = useState<string[]>([]);
+  const [areasMsg, setAreasMsg] = useState('');
+  const [areaForm, setAreaForm] = useState({ nombre: '', unspsc: '', palabrasClave: '' });
+  // Validación de conexión SECOP (online/offline)
+  const [conexion, setConexion] = useState<any>(null);
+  const [testLoading, setTestLoading] = useState(false);
   // Tabla de datos abiertos (investigación SECOP II)
   const [tablaDatos, setTablaDatos] = useState<any[]>([]);
   const [tablaLoading, setTablaLoading] = useState(false);
@@ -67,6 +72,7 @@ export default function ConfiguracionPage() {
     loadIa();
     loadUsuarios();
     loadApiKeys();
+    loadAreas();
   }, []);
 
   // ===== CARGAS =====
@@ -166,6 +172,59 @@ export default function ConfiguracionPage() {
     finally { setTablaLoading(false); }
   }
 
+  // ===== ÁREAS DE INTERÉS (espejo SECOP) =====
+  async function loadAreas() {
+    try {
+      const r = await fetch(`${API_URL}/api/search-profiles`, { headers: auth() });
+      const d = await r.json();
+      setAreas(d.items || []);
+    } catch {}
+  }
+
+  async function crearArea(e: React.FormEvent) {
+    e.preventDefault();
+    setAreasMsg('');
+    const r = await fetch(`${API_URL}/api/search-profiles`, {
+      method: 'POST', headers: { ...auth(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nombre: areaForm.nombre,
+        palabrasClave: areaForm.palabrasClave,
+        unspsc: areaForm.unspsc ? areaForm.unspsc.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
+      }),
+    });
+    const d = await r.json();
+    if (d.error) setAreasMsg(d.error);
+    else { setAreasMsg('Área de interés creada'); setAreaForm({ nombre: '', unspsc: '', palabrasClave: '' }); }
+    loadAreas();
+  }
+
+  async function toggleArea(a: any) {
+    await fetch(`${API_URL}/api/search-profiles/${a.id}`, {
+      method: 'PATCH', headers: { ...auth(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: a.id, isActive: !a.isActive }),
+    });
+    loadAreas();
+  }
+
+  async function eliminarArea(a: any) {
+    await fetch(`${API_URL}/api/search-profiles/${a.id}`, {
+      method: 'DELETE', headers: { ...auth(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: a.id }),
+    });
+    loadAreas();
+  }
+
+  // ===== VALIDACIÓN DE CONEXIÓN SECOP (online/offline) =====
+  async function probarConexion() {
+    setTestLoading(true);
+    try {
+      const r = await fetch(`${API_URL}/api/config/secop/test`, { headers: auth() });
+      const d = await r.json();
+      setConexion(d);
+    } catch { setConexion({ online: false, message: 'No se pudo contactar el backend.' }); }
+    finally { setTestLoading(false); }
+  }
+
   async function guardarIa(e: React.FormEvent) {
     e.preventDefault();
     setIaMsg(''); setIaLoading(true);
@@ -247,6 +306,7 @@ export default function ConfiguracionPage() {
         {[
           { id: 'empresa', label: '🏢 Empresa' },
           { id: 'secop', label: 'API SECOP' },
+          { id: 'areas', label: 'Áreas de Interés' },
           { id: 'ia', label: 'Modelos de IA' },
           { id: 'usuarios', label: 'Usuarios y Roles' },
           { id: 'api', label: 'API Propia' },
@@ -392,44 +452,135 @@ export default function ConfiguracionPage() {
             )}
           </div>
 
-          {/* Tabla de Datos Abiertos (investigación SECOP II) */}
+          {/* Validación de conexión SECOP (online/offline) */}
           <div className="rounded-xl border border-slate-200 bg-white p-6">
-            <h3 className="font-semibold">📊 Tabla de procesos SECOP II (Datos Abiertos)</h3>
-            <p className="mt-1 text-sm text-slate-500">Consulta en vivo el dataset SECOP II - Procesos de Contratación (Datos Abiertos Colombia) y aplica filtros.</p>
-            <form onSubmit={consultarTabla} className="mt-4 flex flex-wrap gap-2">
-              <input value={tablaEntidad} onChange={(e) => setTablaEntidad(e.target.value)} placeholder="Filtrar por entidad..." className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none min-w-[200px]" />
-              <button type="submit" disabled={tablaLoading} className="rounded-lg bg-violet-700 px-5 py-2 text-sm font-semibold text-white disabled:opacity-50">
-                {tablaLoading ? 'Consultando...' : '🔍 Consultar tabla'}
+            <h3 className="font-semibold">📡 Estado de la conexión SECOP</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Verifica que Prometeo puede conectarse a Datos Abiertos Colombia con el endpoint y dataset configurados arriba.
+            </p>
+            <div className="mt-4 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={probarConexion}
+                disabled={testLoading}
+                className="rounded-lg bg-violet-700 px-5 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
+              >
+                {testLoading ? 'Verificando...' : '🔍 Probar conexión'}
               </button>
-            </form>
-            {tablaDatos.length > 0 && (
-              <div className="mt-4 max-h-96 overflow-auto rounded-lg border border-slate-200">
-                <table className="w-full text-xs">
-                  <thead className="sticky top-0 bg-slate-50 text-left uppercase text-slate-500">
-                    <tr>
-                      <th className="px-3 py-2">Entidad</th>
-                      <th className="px-3 py-2">Objeto</th>
-                      <th className="px-3 py-2 text-right">Precio base</th>
-                      <th className="px-3 py-2">Estado</th>
-                      <th className="px-3 py-2">Modalidad</th>
-                      <th className="px-3 py-2">UNSPSC</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tablaDatos.map((p: any, i: number) => (
-                      <tr key={i} className="border-t">
-                        <td className="px-3 py-2">{p.entidad}</td>
-                        <td className="px-3 py-2 max-w-[220px] truncate" title={p.descripci_n_del_procedimiento || p.nombre_del_procedimiento}>{p.descripci_n_del_procedimiento || p.nombre_del_procedimiento}</td>
-                        <td className="px-3 py-2 text-right">{fmtCOP(p.precio_base)}</td>
-                        <td className="px-3 py-2">{p.estado_del_procedimiento}</td>
-                        <td className="px-3 py-2">{p.modalidad_de_contratacion}</td>
-                        <td className="px-3 py-2">{p.codigo_principal_de_categoria}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              {conexion && (
+                <span className={`inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-bold ${
+                  conexion.online ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                }`}>
+                  <span className={`h-2.5 w-2.5 rounded-full ${conexion.online ? 'bg-emerald-500' : 'bg-red-500'} animate-pulse`} />
+                  {conexion.online ? '🟢 ONLINE' : '🔴 OFFLINE'}
+                </span>
+              )}
+            </div>
+            {conexion && (
+              <div className={`mt-4 rounded-lg p-4 ${conexion.online ? 'bg-emerald-50 border border-emerald-200' : 'bg-red-50 border border-red-200'}`}>
+                <p className="text-sm font-medium">{conexion.message}</p>
+                <div className="mt-2 grid gap-2 text-xs text-slate-600 sm:grid-cols-3">
+                  <div className="rounded bg-white p-2">
+                    <p className="font-semibold text-slate-400">Endpoint</p>
+                    <p className="break-all font-mono">{conexion.endpoint || '—'}</p>
+                  </div>
+                  <div className="rounded bg-white p-2">
+                    <p className="font-semibold text-slate-400">Latencia</p>
+                    <p>{conexion.latenciaMs != null ? `${conexion.latenciaMs} ms` : '—'}</p>
+                  </div>
+                  <div className="rounded bg-white p-2">
+                    <p className="font-semibold text-slate-400">App Token</p>
+                    <p>{conexion.appTokenSet ? '✅ Configurado' : '⚠️ Sin token'}</p>
+                  </div>
+                </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ===== TAB ÁREAS DE INTERÉS ===== */}
+      {tab === 'areas' && (
+        <div className="mt-6 max-w-2xl space-y-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-6">
+            <h3 className="font-semibold">🎯 Áreas de Interés (espejo SECOP)</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Igual que en el SECOP: define tus áreas de interés (perfiles) y registra los códigos UNSPSC dentro de
+              cada una. El <b>Inventario de Oportunidades</b> mostrará solo las que coinciden con los códigos de tus áreas activas
+              — es el segundo paso del flujo de la aplicación.
+            </p>
+            {areasMsg && <div className="mt-3 rounded-lg bg-sky-50 px-4 py-2 text-sm text-sky-800">{areasMsg}</div>}
+            <form onSubmit={crearArea} className="mt-4 space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Nombre del área de interés</label>
+                <input
+                  value={areaForm.nombre}
+                  onChange={(e) => setAreaForm({ ...areaForm, nombre: e.target.value })}
+                  required
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                  placeholder="Ej: Tecnología, Energía, Consultorías..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Códigos UNSPSC (separados por coma)</label>
+                <input
+                  value={areaForm.unspsc}
+                  onChange={(e) => setAreaForm({ ...areaForm, unspsc: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                  placeholder="Ej: 81111800, 81111500, 81101701"
+                />
+                <p className="mt-1 text-xs text-slate-400">Estos códigos definen qué oportunidades verás en tu Inventario (match por segmento).</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Palabras clave (opcional)</label>
+                <input
+                  value={areaForm.palabrasClave}
+                  onChange={(e) => setAreaForm({ ...areaForm, palabrasClave: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                  placeholder="Ej: infraestructura, consultoría, energía"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={areas.length >= 3}
+                className="rounded-lg bg-violet-700 px-5 py-2.5 font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
+              >
+                {areas.length >= 3 ? 'Límite de 3 áreas alcanzado' : '➕ Crear área de interés'}
+              </button>
+            </form>
+          </div>
+
+          <div className="space-y-2">
+            {areas.length === 0 && (
+              <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-400">
+                Aún no has creado áreas de interés. Crea la primera — tu Inventario de Oportunidades se poblará
+                automáticamente con las oportunidades que coinciden con sus códigos UNSPSC.
+              </div>
+            )}
+            {areas.map((a) => (
+              <div key={a.id} className="flex items-start justify-between rounded-xl border border-slate-200 bg-white p-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold">{a.nombre}</p>
+                    <button
+                      onClick={() => toggleArea(a)}
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${a.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}
+                    >
+                      {a.isActive ? '● ACTIVO' : '○ INACTIVO'}
+                    </button>
+                  </div>
+                  {a.unspsc && Array.isArray(a.unspsc) && a.unspsc.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {a.unspsc.map((c: string) => (
+                        <span key={c} className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700">{c}</span>
+                      ))}
+                    </div>
+                  )}
+                  {a.palabrasClave && <p className="mt-1 text-xs text-slate-500">🔑 {a.palabrasClave}</p>}
+                </div>
+                <button onClick={() => eliminarArea(a)} className="text-xs text-red-500 hover:text-red-700" title="Eliminar">🗑️</button>
+              </div>
+            ))}
           </div>
         </div>
       )}
