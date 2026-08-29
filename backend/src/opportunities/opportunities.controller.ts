@@ -61,6 +61,8 @@ export class OpportunitiesController {
 
     // Filtro espejo + agrupación por área de interés (match por segmento = 4 dígitos)
     if (useEspejo) {
+      // Solo oportunidades ACTIVAS (disponibles) — excluye descartadas, aplicadas, adjudicadas
+      const disponibles = items.filter((o) => o.estado === 'disponible');
       // Para cada área, sus códigos UNSPSC normalizados
       const areas = profiles.map((p) => ({
         id: p.id,
@@ -69,7 +71,7 @@ export class OpportunitiesController {
       }));
 
       // Asignar cada oportunidad al primer área que coincida (segmento)
-      const conArea = items
+      const conArea = disponibles
         .map((o) => {
           const itemCodes = ((o.metadataJson as any)?.unspsc as string[]) || [];
           const area = areas.find((a) =>

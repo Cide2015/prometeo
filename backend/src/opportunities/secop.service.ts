@@ -123,13 +123,13 @@ export class SecopService {
       });
 
       if (existing) {
-        // Ya existe: si antes estaba disponible pero ya no es activa (adjudicada/cerrada),
-        // actualizar su estado a 'descartada' para que no aparezca en el inventario activo.
+        // Reconciliación: si el proceso existe, sincronizar su estado con su actividad real.
         const esActiva = it.adjudicado === 'No' && it.estado_de_apertura_del_proceso === 'Abierto';
-        if (existing.estado === 'disponible' && !esActiva) {
+        const estadoCorrecto = esActiva ? 'disponible' : 'descartada';
+        if (existing.estado !== estadoCorrecto) {
           await this.prisma.opportunity.update({
             where: { id: existing.id },
-            data: { estado: 'descartada' },
+            data: { estado: estadoCorrecto },
           });
         }
         skipped++;
