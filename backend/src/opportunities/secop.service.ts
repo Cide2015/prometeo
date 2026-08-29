@@ -50,6 +50,23 @@ export class SecopService {
     if (filtros.departamento) whereClauses.push(`departamento_entidad='${filtros.departamento}'`);
     if (filtros.modalidad) whereClauses.push(`modalidad_de_contratacion='${filtros.modalidad}'`);
 
+    // ===== FILTRO DE OPORTUNIDADES ACTIVAS =====
+    // Solo procesos vigentes y activos: NO adjudicados, NO cerrados, en fase de ofertas.
+    // Excluye cancelados, adjudicados, cerrados, borrador, observaciones, etc.
+    whereClauses.push(`adjudicado = 'No'`);
+    whereClauses.push(`estado_de_apertura_del_proceso = 'Abierto'`);
+    // Fases activas en las que se puede participar (presentación de ofertas / ofertas)
+    const fasesActivas = [
+      'Presentación de oferta',
+      'Presentación de oferta (precalificación)',
+      'Fase de ofertas',
+      'Fase de Selección (Presentación de ofertas)',
+      'Proceso de ofertas',
+      'Manifestación de interés (Menor Cuantía)',
+      'Manifestación de interés',
+    ];
+    whereClauses.push(`fase in (${fasesActivas.map((f) => `'${f}'`).join(',')})`);
+
     // Áreas de interés ACTIVAS del tenant: sus códigos UNSPSC (segmento 4 dígitos)
     const areas = await this.prisma.searchProfile.findMany({
       where: { tenantId, isActive: true },
@@ -106,10 +123,20 @@ export class SecopService {
       });
 
       if (existing) {
+        // Ya existe: si antes estaba disponible pero ya no es activa (adjudicada/cerrada),
+        // actualizar su estado a 'descartada' para que no aparezca en el inventario activo.
+        const esActiva = it.adjudicado === 'No' && it.estado_de_apertura_del_proceso === 'Abierto';
+        if (existing.estado === 'disponible' && !esActiva) {
+          await this.prisma.opportunity.update({
+            where: { id: existing.id },
+            data: { estado: 'descartada' },
+          });
+        }
         skipped++;
         continue;
       }
 
+      const esActivaNueva = it.adjudicado === 'No' && it.estado_de_apertura_del_proceso === 'Abierto';
       await this.prisma.opportunity.create({
         data: {
           tenantId,
@@ -118,7 +145,7 @@ export class SecopService {
           objeto: it.descripcion_del_proceso || it.nombre_del_procedimiento,
           cuantiaCop: isNaN(cuantia) ? null : cuantia,
           fechaCierre: it.fecha_de_publicacion_del ? new Date(it.fecha_de_publicacion_del) : null,
-          estado: 'disponible',
+          estado: esActivaNueva ? 'disponible' : 'descartada',
           metadataJson: {
             unspsc: itemCodes,
             modalidad: it.modalidad_de_contratacion,
@@ -126,6 +153,9 @@ export class SecopService {
             ciudad: it.ciudad_entidad,
             fase: it.fase,
             url: it.urlproceso,
+            adjudicado: it.adjudicado,
+            estadoApertura: it.estado_de_apertura_del_proceso,
+            activa: esActivaNueva,
           },
         },
       });
