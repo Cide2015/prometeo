@@ -56,7 +56,7 @@ export class OpportunitiesController {
           : {}),
       },
       orderBy: { cuantiaCop: 'desc' },
-      take: 200,
+      take: 5000,
     });
 
     // Filtro espejo + agrupación por área de interés (match por segmento = 4 dígitos)
