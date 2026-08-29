@@ -13,6 +13,7 @@ const SIDEBAR = [
   { href: '/dashboard/ofertas', label: 'Generador de Ofertas', icon: '📝' },
   { href: '/dashboard/ganadas', label: 'Ganadas (Project Delivery)', icon: '🏆' },
   { href: '/dashboard/financiero', label: 'Control Financiero', icon: '💰' },
+  { href: '/dashboard/insights', label: 'Insights & BI', icon: '📊' },
   { href: '/dashboard/configuracion', label: 'Configuraciones', icon: '⚙️' },
 ];
 

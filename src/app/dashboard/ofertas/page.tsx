@@ -77,6 +77,26 @@ export default function OfertasPage() {
     load();
   }
 
+  const [drafterDoc, setDrafterDoc] = useState<{ titulo: string; contenido: string } | null>(null);
+  const [drafterTipo, setDrafterTipo] = useState('');
+
+  async function generarDocumento(tipo: string, bidId?: string) {
+    const token = localStorage.getItem('prometeo_token');
+    setMessage('');
+    setDrafterDoc(null);
+    setDrafterTipo(tipo);
+    const url = tipo === 'carta' ? `${API_URL}/api/drafter/carta` : tipo === 'experiencia' ? `${API_URL}/api/drafter/experiencia` : `${API_URL}/api/drafter/inhabilidades`;
+    const body = tipo === 'carta' ? { bidId } : {};
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (d.error) setMessage(d.error);
+    else setDrafterDoc(d);
+  }
+
   const fmtCOP = (v?: string) => {
     if (!v) return '—';
     return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(Number(v));
@@ -127,14 +147,23 @@ export default function OfertasPage() {
                     {b.pWin && <p className="mt-1 text-xs font-bold text-violet-700">P_win {b.pWin}%</p>}
                     <div className="mt-2 flex items-center justify-between">
                       <span className="text-xs text-slate-500">{fmtCOP(b.valorOfertado)}</span>
-                      {fase.id !== 'presentada' && (
+                      <div className="flex gap-1">
                         <button
-                          onClick={() => mover(b.id, FASES[FASES.findIndex((f) => f.id === fase.id) + 1].id)}
-                          className="rounded bg-violet-100 px-2 py-1 text-[11px] font-semibold text-violet-700 hover:bg-violet-200"
+                          onClick={() => generarDocumento('carta', b.id)}
+                          title="Generar carta de presentación (Drafter)"
+                          className="rounded bg-emerald-100 px-1.5 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-200"
                         >
-                          → Siguiente
+                          📄
                         </button>
-                      )}
+                        {fase.id !== 'presentada' && (
+                          <button
+                            onClick={() => mover(b.id, FASES[FASES.findIndex((f) => f.id === fase.id) + 1].id)}
+                            className="rounded bg-violet-100 px-2 py-1 text-[11px] font-semibold text-violet-700 hover:bg-violet-200"
+                          >
+                            → Siguiente
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -147,6 +176,35 @@ export default function OfertasPage() {
             </div>
           );
         })}
+      </div>
+
+      {/* Panel Drafter (Dif B: generación de documentos de la propuesta) */}
+      <div className="mt-8 rounded-xl border border-slate-200 bg-white p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold">📄 Agente Drafter — Generación documental</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Genera los anexos oficiales de Colombia Compra Eficiente con IA: carta de presentación, formato de experiencia e inhabilidades.
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button onClick={() => generarDocumento('experiencia')} className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200">
+            🏆 Formato de experiencia
+          </button>
+          <button onClick={() => generarDocumento('inhabilidades')} className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200">
+            ⚖️ Inhabilidades e incompatibilidades
+          </button>
+        </div>
+        {drafterDoc && (
+          <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+            <div className="flex items-center justify-between">
+              <p className="font-semibold text-emerald-800">{drafterDoc.titulo}</p>
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">{drafterTipo}</span>
+            </div>
+            <pre className="mt-3 whitespace-pre-wrap rounded-lg bg-white p-4 text-sm text-slate-700">{drafterDoc.contenido}</pre>
+          </div>
+        )}
       </div>
     </div>
   );

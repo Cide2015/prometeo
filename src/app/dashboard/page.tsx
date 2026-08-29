@@ -30,9 +30,11 @@ export default function DashboardPage() {
 
   // Filtros de negocio del usuario
   const [filtroEntidad, setFiltroEntidad] = useState('');
+  const [filtroQ, setFiltroQ] = useState('');
   const [filtroMin, setFiltroMin] = useState('');
   const [filtroMax, setFiltroMax] = useState('');
   const [filtroModalidad, setFiltroModalidad] = useState('');
+  const [filtroDepto, setFiltroDepto] = useState('');
 
   useEffect(() => {
     const token = localStorage.getItem('prometeo_token');
@@ -54,6 +56,11 @@ export default function DashboardPage() {
     try {
       const params = new URLSearchParams({ tenantId: tenant });
       if (filtroEntidad) params.set('entidad', filtroEntidad);
+      if (filtroQ) params.set('q', filtroQ);
+      if (filtroMin) params.set('cuantiaMin', filtroMin);
+      if (filtroMax) params.set('cuantiaMax', filtroMax);
+      if (filtroModalidad) params.set('modalidad', filtroModalidad);
+      if (filtroDepto) params.set('departamento', filtroDepto);
       const [s, o] = await Promise.all([
         fetch(`${API_URL}/api/opportunities/stats?tenantId=${tenant}`).then((r) => r.json()),
         fetch(`${API_URL}/api/opportunities?${params}`).then((r) => r.json()),
@@ -124,6 +131,16 @@ export default function DashboardPage() {
 
       {/* Filtros del usuario */}
       <form onSubmit={aplicarFiltros} className="mt-6 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-4">
+        <div className="sm:col-span-2">
+          <label className="block text-xs font-medium text-slate-500">🔍 Palabras clave (objeto / entidad)</label>
+          <input
+            type="text"
+            value={filtroQ}
+            onChange={(e) => setFiltroQ(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+            placeholder="Ej: consultoría, infraestructura, energía..."
+          />
+        </div>
         <div>
           <label className="block text-xs font-medium text-slate-500">Entidad</label>
           <input
@@ -132,6 +149,16 @@ export default function DashboardPage() {
             onChange={(e) => setFiltroEntidad(e.target.value)}
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
             placeholder="Buscar entidad..."
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-500">Departamento</label>
+          <input
+            type="text"
+            value={filtroDepto}
+            onChange={(e) => setFiltroDepto(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+            placeholder="Bogotá D.C., Antioquia..."
           />
         </div>
         <div>
@@ -167,6 +194,11 @@ export default function DashboardPage() {
             <option>Mínima Cuantía</option>
             <option>Contratación Directa</option>
           </select>
+        </div>
+        <div className="flex items-end">
+          <button type="submit" className="w-full rounded-lg bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800">
+            Aplicar filtros
+          </button>
         </div>
       </form>
 
