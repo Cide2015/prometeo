@@ -12,6 +12,12 @@ import { AnalysisModule } from './analysis/analysis.module';
 import { BidsModule } from './bids/bids.module';
 import { ProjectsModule } from './projects/projects.module';
 import { FinancieroModule } from './financiero/financiero.module';
+import { SearchProfilesModule } from './search-profiles/search-profiles.module';
+import { InsightsModule } from './insights/insights.module';
+import { DrafterModule } from './drafter/drafter.module';
+import { PliegosModule } from './pliegos/pliegos.module';
+import { AdendasModule } from './adendas/adendas.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -33,6 +39,12 @@ import { FinancieroModule } from './financiero/financiero.module';
     BidsModule,
     ProjectsModule,
     FinancieroModule,
+    SearchProfilesModule,
+    InsightsModule,
+    DrafterModule,
+    PliegosModule,
+    AdendasModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}

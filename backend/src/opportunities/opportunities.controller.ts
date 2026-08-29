@@ -11,15 +11,23 @@ export class OpportunitiesController {
     private readonly jwt: JwtService,
   ) {}
 
-  /** Listar oportunidades del tenant autenticado (con filtros opcionales) */
+  /** Listar oportunidades del tenant autenticado (búsqueda por palabras clave + filtros avanzados) */
   @Get()
   async list(
     @Headers('authorization') authorization: string,
     @Query('estado') estado?: string,
     @Query('entidad') entidad?: string,
     @Query('modalidad') modalidad?: string,
+    @Query('q') q?: string,
+    @Query('cuantiaMin') cuantiaMin?: string,
+    @Query('cuantiaMax') cuantiaMax?: string,
+    @Query('departamento') departamento?: string,
   ) {
     const { tenantId } = this.resolve(authorization);
+
+    const min = cuantiaMin ? Number(cuantiaMin) : undefined;
+    const max = cuantiaMax ? Number(cuantiaMax) : undefined;
+
     const items = await this.prisma.opportunity.findMany({
       where: {
         tenantId,
@@ -27,6 +35,15 @@ export class OpportunitiesController {
         ...(entidad ? { entidad: { contains: entidad, mode: 'insensitive' } } : {}),
         ...(modalidad
           ? { metadataJson: { path: ['modalidad'], equals: modalidad } }
+          : {}),
+        ...(q
+          ? { OR: [{ objeto: { contains: q, mode: 'insensitive' } }, { entidad: { contains: q, mode: 'insensitive' } }] }
+          : {}),
+        ...(min !== undefined || max !== undefined
+          ? { cuantiaCop: { ...(min !== undefined ? { gte: min } : {}), ...(max !== undefined ? { lte: max } : {}) } }
+          : {}),
+        ...(departamento
+          ? { metadataJson: { path: ['departamento'], equals: departamento } }
           : {}),
       },
       orderBy: { cuantiaCop: 'desc' },

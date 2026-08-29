@@ -34,6 +34,10 @@ model Tenant {
   apiKeys        ApiKey[]
   aiConfigs      AiConfiguration[]
   documents      DocumentLibrary[]
+  searchProfiles SearchProfile[]
+  pliegoDocuments PliegoDocument[]
+  notifications  NotificationLog[]
+  adendaAlerts   AdendaAlert[]
 
   @@map("tenants")
 }
@@ -87,6 +91,8 @@ model Opportunity {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   bids   Bid[]
   analyses Analysis[]
+  pliegoDocuments PliegoDocument[]
+  adendaAlerts AdendaAlert[]
 
   @@index([tenantId, estado])
   @@index([secopId])
@@ -295,4 +301,83 @@ model ContractDocument {
 
   @@index([tenantId, projectId])
   @@map("contract_documents")
+}
+
+// ===== Benchmark Alicia: Perfiles de búsqueda (hasta 3 por tenant) =====
+
+model SearchProfile {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  nombre        String   // ej. "Línea SG-SST", "Equipo Energía"
+  palabrasClave String?  @map("palabras_clave") @db.Text // búsqueda por keywords en objeto
+  unspsc        Json?    @db.JsonB
+  cuantiaMin    Decimal? @map("cuantia_min") @db.Decimal(18, 2)
+  cuantiaMax    Decimal? @map("cuantia_max") @db.Decimal(18, 2)
+  departamento  String?
+  municipio     String?
+  modalidad     String?
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("search_profiles")
+}
+
+// ===== RAG: Documentos de pliego (embeddings pgvector) =====
+
+model PliegoDocument {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  opportunityId String?  @map("opportunity_id") @db.Uuid
+  nombre        String
+  url           String
+  texto         String?  @db.Text
+  embedding     Unsupported("vector(1536)")? // pgvector
+  tamano        Int?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@map("pliego_documents")
+}
+
+// ===== Notificaciones diarias (benchmark Alicia) =====
+
+model NotificationLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  tipo      String   // diaria | adenda | vencimiento
+  asunto    String
+  contenido String?  @db.Text
+  enviadoA  String?  @map("enviado_a")
+  enviado   Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@map("notification_logs")
+}
+
+// ===== Monitor de adendas (Dif C: re-lectura automática de pliegos) =====
+
+model AdendaAlert {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  opportunityId String?  @map("opportunity_id") @db.Uuid
+  procesoId     String?  @map("proceso_id")
+  fechaAnterior DateTime? @map("fecha_anterior")
+  cambioDetectado Json?  @map("cambio_detectado") @db.JsonB
+  notificada    Boolean  @default(false)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, notificada])
+  @@map("adenda_alerts")
 }
