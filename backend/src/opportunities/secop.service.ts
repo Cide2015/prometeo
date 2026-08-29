@@ -16,6 +16,8 @@ interface SecopProcess {
   categorias_adicionales?: string;
   fecha_de_publicacion_del?: string;
   urlproceso?: string;
+  adjudicado?: string;
+  estado_de_apertura_del_proceso?: string;
 }
 
 @Injectable()
