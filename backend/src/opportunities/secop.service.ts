@@ -51,8 +51,10 @@ export class SecopService {
     if (filtros.modalidad) whereClauses.push(`modalidad_de_contratacion='${filtros.modalidad}'`);
 
     const where = whereClauses.join(' AND ');
-    // Consulta ABIERTA: traer más procesos (200) para que el filtro por áreas de interés tenga candidatos
-    const url = `${sodaEndpoint}/${dataset}.json?$where=${encodeURIComponent(where)}&$limit=200&$order=precio_base DESC`;
+    // Consulta ABIERTA: traer hasta 1000 procesos vigentes ordenados por fecha de publicación DESC
+    // (los más recientes), para que el filtro por áreas de interés del tenant tenga suficientes candidatos.
+    // $limit máximo por request SODA es 1000; para más se paginaría con $offset.
+    const url = `${sodaEndpoint}/${dataset}.json?$where=${encodeURIComponent(where)}&$limit=1000&$order=fecha_de_publicacion_del DESC`;
     const res = await fetch(url, {
       headers: {
         ...(appToken ? { 'X-App-Token': appToken } : {}),
