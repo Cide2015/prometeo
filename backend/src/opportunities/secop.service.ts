@@ -132,6 +132,21 @@ export class SecopService {
             data: { estado: estadoCorrecto },
           });
         }
+        // Actualizar metadata de actividad si no estaba (migración de registros antiguos)
+        const metadata = (existing.metadataJson as any) || {};
+        if (metadata.activa === undefined || metadata.adjudicado === undefined) {
+          await this.prisma.opportunity.update({
+            where: { id: existing.id },
+            data: {
+              metadataJson: {
+                ...metadata,
+                adjudicado: it.adjudicado,
+                estadoApertura: it.estado_de_apertura_del_proceso,
+                activa: esActiva,
+              },
+            },
+          });
+        }
         skipped++;
         continue;
       }
