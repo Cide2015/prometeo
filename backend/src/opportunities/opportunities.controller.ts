@@ -11,7 +11,9 @@ export class OpportunitiesController {
     private readonly jwt: JwtService,
   ) {}
 
-  /** Listar oportunidades del tenant autenticado (búsqueda por palabras clave + filtros avanzados) */
+  /** Listar oportunidades del tenant autenticado (búsqueda por palabras clave + filtros avanzados).
+   *  Con useProfiles=true (espejo SECOP), filtra por las áreas de interés activas y agrupa el
+   *  resultado por área: cada oportunidad se asigna al área cuyo código UNSPSC coincide (segmento). */
   @Get()
   async list(
     @Headers('authorization') authorization: string,
@@ -29,15 +31,11 @@ export class OpportunitiesController {
     const min = cuantiaMin ? Number(cuantiaMin) : undefined;
     const max = cuantiaMax ? Number(cuantiaMax) : undefined;
 
-    // Espejo SECOP: si useProfiles=true, solo oportunidades que coinciden
-    // con los códigos UNSPSC de los perfiles/áreas de interés ACTIVOS del tenant.
-    let profileCodes: string[] | null = null;
-    if (useProfiles === 'true') {
-      const profiles = await this.prisma.searchProfile.findMany({
-        where: { tenantId, isActive: true },
-      });
-      profileCodes = profiles.flatMap((p) => (p.unspsc as string[]) || []);
-    }
+    // Áreas de interés activas del tenant (perfiles espejo SECOP)
+    const profiles = await this.prisma.searchProfile.findMany({
+      where: { tenantId, isActive: true },
+    });
+    const useEspejo = useProfiles === 'true' && profiles.length > 0;
 
     const items = await this.prisma.opportunity.findMany({
       where: {
@@ -58,24 +56,51 @@ export class OpportunitiesController {
           : {}),
       },
       orderBy: { cuantiaCop: 'desc' },
-      take: 100,
+      take: 200,
     });
 
-    // Filtro espejo por códigos UNSPSC de los perfiles activos (post-fetch, el JSONB no es consultable fácil)
-    let filtered = items;
-    if (profileCodes && profileCodes.length > 0) {
-      filtered = items.filter((o) => {
-        const itemCodes = ((o.metadataJson as any)?.unspsc as string[]) || [];
-        return itemCodes.some((c) =>
-          profileCodes!.some((uc) => uc.slice(0, 4) === c.slice(0, 4)),
-        );
-      });
-    } else if (profileCodes && profileCodes.length === 0) {
-      // Hay perfiles configurados pero ninguno activo con UNSPSC → sin coincidencias por perfil
-      filtered = [];
+    // Filtro espejo + agrupación por área de interés (match por segmento = 4 dígitos)
+    if (useEspejo) {
+      // Para cada área, sus códigos UNSPSC normalizados
+      const areas = profiles.map((p) => ({
+        id: p.id,
+        nombre: p.nombre,
+        codigos: (p.unspsc as string[]) || [],
+      }));
+
+      // Asignar cada oportunidad al primer área que coincida (segmento)
+      const conArea = items
+        .map((o) => {
+          const itemCodes = ((o.metadataJson as any)?.unspsc as string[]) || [];
+          const area = areas.find((a) =>
+            a.codigos.some((uc) =>
+              itemCodes.some((c) => uc.slice(0, 4) === c.slice(0, 4)),
+            ),
+          );
+          return { ...o, areaId: area?.id || null, areaNombre: area?.nombre || null };
+        })
+        .filter((o) => o.areaId);
+
+      // Agrupar por área de interés
+      const grupos = areas
+        .map((a) => ({
+          areaId: a.id,
+          areaNombre: a.nombre,
+          codigos: a.codigos,
+          items: conArea.filter((o) => o.areaId === a.id),
+        }))
+        .filter((g) => g.items.length > 0);
+
+      return {
+        items: conArea,
+        total: conArea.length,
+        filtroEspejo: profiles.reduce((n, p) => n + ((p.unspsc as string[]) || []).length, 0),
+        grupos,
+        useEspejo: true,
+      };
     }
 
-    return { items: filtered, total: filtered.length, filtroEspejo: profileCodes ? profileCodes.length : 0 };
+    return { items, total: items.length, filtroEspejo: 0, grupos: [], useEspejo: false };
   }
 
   /** Sincronizar oportunidades desde SECOP II (SODA API) usando la config del tenant */

@@ -24,15 +24,14 @@ export class SecopService {
 
   /**
    * Ingiesta oportunidades SECOP II (SODA API) para un tenant usando
-   * la configuración del tenant (endpoint, dataset, App Token y filtros)
-   * que el usuario define en Configuración → tab "API SECOP".
+   * la configuración del tenant (endpoint, dataset, App Token y filtros).
+   * La consulta es ABIERTA: trae los procesos vigentes (Abierto/Publicado)
+   * sin filtrar por UNSPSC — el filtro por áreas de interés se aplica
+   * en el listado (espejo SECOP, agrupado por área).
    */
   async ingest(tenantId: string): Promise<{ ingested: number; skipped: number }> {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) throw new Error('Tenant no encontrado');
-
-    const unspsc = await this.prisma.unspscProfile.findMany({ where: { tenantId } });
-    const codes = unspsc.map((u) => u.codigoUnspsc);
 
     // Configuración del tenant (Módulo 7 → tab API SECOP)
     const secopCfg = (tenant.configuracionesJson as any)?.secop || {};
@@ -52,7 +51,8 @@ export class SecopService {
     if (filtros.modalidad) whereClauses.push(`modalidad_de_contratacion='${filtros.modalidad}'`);
 
     const where = whereClauses.join(' AND ');
-    const url = `${sodaEndpoint}/${dataset}.json?$where=${encodeURIComponent(where)}&$limit=100&$order=precio_base DESC`;
+    // Consulta ABIERTA: traer más procesos (200) para que el filtro por áreas de interés tenga candidatos
+    const url = `${sodaEndpoint}/${dataset}.json?$where=${encodeURIComponent(where)}&$limit=200&$order=precio_base DESC`;
     const res = await fetch(url, {
       headers: {
         ...(appToken ? { 'X-App-Token': appToken } : {}),
@@ -67,7 +67,6 @@ export class SecopService {
     let ingested = 0;
     let skipped = 0;
     for (const it of items) {
-      // Filtrar por UNSPSC del tenant (categoría principal + adicionales)
       // Normalizar: el dataset usa formato "V1.80111500" → extraer los 8 dígitos
       const normalize = (c: string) => c.replace(/^V\d+\./, '').slice(0, 8);
       const itemCodes = [
@@ -77,17 +76,6 @@ export class SecopService {
         .map((c) => (c || '').trim())
         .filter((c) => c && c !== 'No definido' && c !== 'UNSPECIFIED')
         .map(normalize);
-
-      // Si el usuario configuró UNSPSC específicos, filtrar por ellos;
-      // si no, usar los perfiles del tenant. Match por primeros 4 dígitos.
-      const filterCodes = filtros.unspsc?.length ? filtros.unspsc : codes;
-      const match = itemCodes.some((c) =>
-        filterCodes.some((uc) => uc.slice(0, 4) === c.slice(0, 4) || c.slice(0, 4) === uc.slice(0, 4)),
-      );
-      if (!match) {
-        skipped++;
-        continue;
-      }
 
       const cuantia = typeof it.precio_base === 'string'
         ? parseFloat(it.precio_base.replace(/[^\d.-]/g, ''))

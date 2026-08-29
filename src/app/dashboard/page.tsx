@@ -21,10 +21,20 @@ interface Stats {
   descartadas: number;
 }
 
+interface GrupoArea {
+  areaId: string;
+  areaNombre: string;
+  codigos: string[];
+  items: Opportunity[];
+}
+
 export default function DashboardPage() {
   const [tenantId, setTenantId] = useState<string>('');
   const [stats, setStats] = useState<Stats | null>(null);
   const [items, setItems] = useState<Opportunity[]>([]);
+  const [grupos, setGrupos] = useState<GrupoArea[]>([]);
+  const [useEspejoResult, setUseEspejoResult] = useState(false);
+  const [unspscConfigurados, setUnspscConfigurados] = useState(0);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -69,6 +79,9 @@ export default function DashboardPage() {
       ]);
       setStats(s);
       setItems(o.items || []);
+      setGrupos(o.grupos || []);
+      setUseEspejoResult(!!o.useEspejo);
+      setUnspscConfigurados(o.filtroEspejo || 0);
     } catch {
       setMessage('Error cargando datos');
     } finally {
@@ -218,10 +231,10 @@ export default function DashboardPage() {
 
       <div className="mt-6 grid gap-4 sm:grid-cols-4">
         {[
-          { label: 'Oportunidades disponibles', value: stats?.disponibles ?? 0, color: 'text-violet-700' },
-          { label: 'Aplicadas', value: stats?.aplicadas ?? 0, color: 'text-sky-600' },
-          { label: 'Descartadas', value: stats?.descartadas ?? 0, color: 'text-amber-600' },
-          { label: 'UNSPSC configurados', value: 15, color: 'text-emerald-600' },
+          { label: 'Oportunidades disponibles', value: useEspejoResult ? items.length : stats?.disponibles ?? 0, color: 'text-violet-700' },
+          { label: 'Áreas de interés', value: grupos.length, color: 'text-emerald-600' },
+          { label: 'UNSPSC configurados', value: unspscConfigurados || 15, color: 'text-sky-600' },
+          { label: 'Coincidencias por área', value: useEspejoResult ? grupos.length : '—', color: 'text-amber-600' },
         ].map((s) => (
           <div key={s.label} className="rounded-xl border border-slate-200 bg-white p-5">
             <p className="text-xs font-medium text-slate-500">{s.label}</p>
@@ -230,43 +243,96 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      <div className="mt-8 overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500">
-            <tr>
-              <th className="px-4 py-3">Entidad</th>
-              <th className="px-4 py-3">Objeto</th>
-              <th className="px-4 py-3">Cuantía</th>
-              <th className="px-4 py-3">Cierre</th>
-              <th className="px-4 py-3">Modalidad</th>
-              <th className="px-4 py-3">Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.length === 0 && (
+      {/* Listado: agrupado por área de interés (espejo SECOP) */}
+      {useEspejoResult ? (
+        <div className="mt-8 space-y-6">
+          {grupos.length === 0 && (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center">
+              <p className="text-slate-500">
+                No hay oportunidades que coincidan con tus áreas de interés. Pulsa <b>"↻ Sincronizar SECOP II"</b> para
+                traer las oportunidades abiertas y aplicar el filtro.
+              </p>
+            </div>
+          )}
+          {grupos.map((g) => (
+            <div key={g.areaId} className="overflow-hidden rounded-xl border border-violet-200 bg-white">
+              <div className="flex items-center justify-between border-b border-violet-100 bg-violet-50 px-4 py-3">
+                <div>
+                  <h3 className="font-semibold text-violet-800">🎯 {g.areaNombre}</h3>
+                  <p className="text-xs text-violet-500">{g.codigos.join(', ')}</p>
+                </div>
+                <span className="rounded-full bg-violet-700 px-3 py-1 text-xs font-bold text-white">{g.items.length} oportunidades</span>
+              </div>
+              <table className="w-full text-left text-sm">
+                <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500">
+                  <tr>
+                    <th className="px-4 py-2">Entidad</th>
+                    <th className="px-4 py-2">Objeto</th>
+                    <th className="px-4 py-2">Cuantía</th>
+                    <th className="px-4 py-2">Cierre</th>
+                    <th className="px-4 py-2">Modalidad</th>
+                    <th className="px-4 py-2">UNSPSC</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {g.items.map((o) => (
+                    <tr key={o.id} className="border-b last:border-0 hover:bg-slate-50">
+                      <td className="px-4 py-2 font-medium">{o.entidad || '—'}</td>
+                      <td className="max-w-md truncate px-4 py-2 text-slate-600">{o.objeto || '—'}</td>
+                      <td className="px-4 py-2">{fmtCOP(o.cuantiaCop)}</td>
+                      <td className="px-4 py-2">{o.fechaCierre ? new Date(o.fechaCierre).toLocaleDateString('es-CO') : '—'}</td>
+                      <td className="px-4 py-2">{o.metadataJson?.modalidad || '—'}</td>
+                      <td className="px-4 py-2">
+                        <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-700">
+                          {((o.metadataJson?.unspsc) || []).join(', ')}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-8 overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500">
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
-                  {loading ? 'Cargando...' : 'Sin oportunidades. Pulsa "Sincronizar SECOP II".'}
-                </td>
+                <th className="px-4 py-3">Entidad</th>
+                <th className="px-4 py-3">Objeto</th>
+                <th className="px-4 py-3">Cuantía</th>
+                <th className="px-4 py-3">Cierre</th>
+                <th className="px-4 py-3">Modalidad</th>
+                <th className="px-4 py-3">Estado</th>
               </tr>
-            )}
-            {items.map((o) => (
-              <tr key={o.id} className="border-b last:border-0 hover:bg-slate-50">
-                <td className="px-4 py-3 font-medium">{o.entidad || '—'}</td>
-                <td className="max-w-md truncate px-4 py-3 text-slate-600">{o.objeto || '—'}</td>
-                <td className="px-4 py-3">{fmtCOP(o.cuantiaCop)}</td>
-                <td className="px-4 py-3">{o.fechaCierre ? new Date(o.fechaCierre).toLocaleDateString('es-CO') : '—'}</td>
-                <td className="px-4 py-3">{o.metadataJson?.modalidad || '—'}</td>
-                <td className="px-4 py-3">
-                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                    {o.estado}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {items.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
+                    {loading ? 'Cargando...' : 'Sin oportunidades. Pulsa "Sincronizar SECOP II".'}
+                  </td>
+                </tr>
+              )}
+              {items.map((o) => (
+                <tr key={o.id} className="border-b last:border-0 hover:bg-slate-50">
+                  <td className="px-4 py-3 font-medium">{o.entidad || '—'}</td>
+                  <td className="max-w-md truncate px-4 py-3 text-slate-600">{o.objeto || '—'}</td>
+                  <td className="px-4 py-3">{fmtCOP(o.cuantiaCop)}</td>
+                  <td className="px-4 py-3">{o.fechaCierre ? new Date(o.fechaCierre).toLocaleDateString('es-CO') : '—'}</td>
+                  <td className="px-4 py-3">{o.metadataJson?.modalidad || '—'}</td>
+                  <td className="px-4 py-3">
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                      {o.estado}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
