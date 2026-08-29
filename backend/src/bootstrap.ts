@@ -60,8 +60,13 @@ async function main() {
         },
         // Conexión SECOP II (Módulo 1)
         secop: {
-          sodaEndpoint: 'https://www.datos.gov.co/resource/p6dx-8zbt.json',
-          appToken: process.env.SODA_APP_TOKEN || '',
+          sodaEndpoint: 'https://www.datos.gov.co/resource',
+          datasets: {
+            procesos: 'p6dx-8zbt',
+            contratos: 'jbjy-vk9h',
+            tiendaVirtual: 'rgxm-mmea',
+          },
+          appToken: '',
           estadoFiltro: 'Presentación de ofertas',
           syncCron: '0 */6 * * *',
         },
