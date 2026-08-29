@@ -22,11 +22,22 @@ export class OpportunitiesController {
     @Query('cuantiaMin') cuantiaMin?: string,
     @Query('cuantiaMax') cuantiaMax?: string,
     @Query('departamento') departamento?: string,
+    @Query('useProfiles') useProfiles?: string,
   ) {
     const { tenantId } = this.resolve(authorization);
 
     const min = cuantiaMin ? Number(cuantiaMin) : undefined;
     const max = cuantiaMax ? Number(cuantiaMax) : undefined;
+
+    // Espejo SECOP: si useProfiles=true, solo oportunidades que coinciden
+    // con los códigos UNSPSC de los perfiles/áreas de interés ACTIVOS del tenant.
+    let profileCodes: string[] | null = null;
+    if (useProfiles === 'true') {
+      const profiles = await this.prisma.searchProfile.findMany({
+        where: { tenantId, isActive: true },
+      });
+      profileCodes = profiles.flatMap((p) => (p.unspsc as string[]) || []);
+    }
 
     const items = await this.prisma.opportunity.findMany({
       where: {
@@ -49,7 +60,22 @@ export class OpportunitiesController {
       orderBy: { cuantiaCop: 'desc' },
       take: 100,
     });
-    return { items, total: items.length };
+
+    // Filtro espejo por códigos UNSPSC de los perfiles activos (post-fetch, el JSONB no es consultable fácil)
+    let filtered = items;
+    if (profileCodes && profileCodes.length > 0) {
+      filtered = items.filter((o) => {
+        const itemCodes = ((o.metadataJson as any)?.unspsc as string[]) || [];
+        return itemCodes.some((c) =>
+          profileCodes!.some((uc) => uc.slice(0, 4) === c.slice(0, 4)),
+        );
+      });
+    } else if (profileCodes && profileCodes.length === 0) {
+      // Hay perfiles configurados pero ninguno activo con UNSPSC → sin coincidencias por perfil
+      filtered = [];
+    }
+
+    return { items: filtered, total: filtered.length, filtroEspejo: profileCodes ? profileCodes.length : 0 };
   }
 
   /** Sincronizar oportunidades desde SECOP II (SODA API) usando la config del tenant */

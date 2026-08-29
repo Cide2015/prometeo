@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 export default function ConfiguracionPage() {
-  const [tab, setTab] = useState<'secop' | 'ia' | 'usuarios' | 'api'>('secop');
+  const [tab, setTab] = useState<'secop' | 'ia' | 'usuarios' | 'api' | 'areas'>('secop');
 
   // Config SECOP
   const [sodaEndpoint, setSodaEndpoint] = useState('https://www.datos.gov.co/resource');
@@ -30,6 +30,11 @@ export default function ConfiguracionPage() {
   const [geminiKeySet, setGeminiKeySet] = useState(false);
   const [iaMessage, setIaMessage] = useState('');
   const [iaLoading, setIaLoading] = useState(false);
+
+  // Áreas de interés (espejo SECOP)
+  const [areas, setAreas] = useState<any[]>([]);
+  const [areasMessage, setAreasMessage] = useState('');
+  const [areaForm, setAreaForm] = useState({ nombre: '', unspsc: '', palabrasClave: '' });
 
   useEffect(() => {
     const token = localStorage.getItem('prometeo_token');
@@ -58,7 +63,57 @@ export default function ConfiguracionPage() {
         setGeminiKeySet(!!d.geminiApiKeySet);
       })
       .catch(() => {});
+    // Áreas de interés
+    loadAreas();
   }, []);
+
+  async function loadAreas() {
+    const token = localStorage.getItem('prometeo_token');
+    try {
+      const r = await fetch(`${API_URL}/api/search-profiles`, { headers: { Authorization: `Bearer ${token}` } });
+      const d = await r.json();
+      setAreas(d.items || []);
+    } catch {}
+  }
+
+  async function crearArea(e: React.FormEvent) {
+    e.preventDefault();
+    setAreasMessage('');
+    const token = localStorage.getItem('prometeo_token');
+    const r = await fetch(`${API_URL}/api/search-profiles`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        nombre: areaForm.nombre,
+        palabrasClave: areaForm.palabrasClave,
+        unspsc: areaForm.unspsc ? areaForm.unspsc.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
+      }),
+    });
+    const d = await r.json();
+    if (d.error) setAreasMessage(d.error);
+    else { setAreasMessage('Área de interés creada'); setAreaForm({ nombre: '', unspsc: '', palabrasClave: '' }); }
+    loadAreas();
+  }
+
+  async function toggleArea(area: any) {
+    const token = localStorage.getItem('prometeo_token');
+    await fetch(`${API_URL}/api/search-profiles/${area.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ id: area.id, isActive: !area.isActive }),
+    });
+    loadAreas();
+  }
+
+  async function eliminarArea(area: any) {
+    const token = localStorage.getItem('prometeo_token');
+    await fetch(`${API_URL}/api/search-profiles/${area.id}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ id: area.id }),
+    });
+    loadAreas();
+  }
 
   async function guardarSecop(e: React.FormEvent) {
     e.preventDefault();
@@ -134,6 +189,7 @@ export default function ConfiguracionPage() {
       <div className="mt-6 flex gap-2 border-b border-slate-200">
         {[
           { id: 'secop', label: 'API SECOP' },
+          { id: 'areas', label: 'Áreas de Interés' },
           { id: 'ia', label: 'Modelos de IA' },
           { id: 'usuarios', label: 'Usuarios y Roles' },
           { id: 'api', label: 'API Propia' },
@@ -360,8 +416,97 @@ export default function ConfiguracionPage() {
         </form>
       )}
 
+      {/* Tab Áreas de Interés (espejo SECOP) */}
+      {tab === 'areas' && (
+        <div className="mt-6 max-w-2xl space-y-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-6">
+            <h3 className="font-semibold">🎯 Áreas de Interés (espejo SECOP)</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Igual que en el SECOP: define tus áreas de interés (perfiles) y registra los códigos UNSPSC dentro de
+              cada una. El tablero de oportunidades mostrará solo las que coinciden con los códigos de tus áreas activas.
+            </p>
+            {areasMessage && (
+              <div className="mt-3 rounded-lg bg-sky-50 px-4 py-2 text-sm text-sky-800">{areasMessage}</div>
+            )}
+            <form onSubmit={crearArea} className="mt-4 space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Nombre del área de interés</label>
+                <input
+                  value={areaForm.nombre}
+                  onChange={(e) => setAreaForm({ ...areaForm, nombre: e.target.value })}
+                  required
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                  placeholder="Ej: Tecnología, Energía, Consultorías..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Códigos UNSPSC (separados por coma)</label>
+                <input
+                  value={areaForm.unspsc}
+                  onChange={(e) => setAreaForm({ ...areaForm, unspsc: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                  placeholder="Ej: 81111800, 81111500, 81101701"
+                />
+                <p className="mt-1 text-xs text-slate-400">Los códigos definen qué oportunidades verás en tu tablero (match por segmento).</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Palabras clave (opcional)</label>
+                <input
+                  value={areaForm.palabrasClave}
+                  onChange={(e) => setAreaForm({ ...areaForm, palabrasClave: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                  placeholder="Ej: infraestructura, consultoría, energía"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={areas.length >= 3}
+                className="rounded-lg bg-violet-700 px-5 py-2.5 font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
+              >
+                {areas.length >= 3 ? 'Límite de 3 áreas alcanzado' : '➕ Crear área de interés'}
+              </button>
+            </form>
+          </div>
+
+          {/* Lista de áreas */}
+          <div className="space-y-2">
+            {areas.length === 0 && (
+              <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-400">
+                Aún no has creado áreas de interés. Crea la primera para filtrar tu tablero de oportunidades.
+              </div>
+            )}
+            {areas.map((a) => (
+              <div key={a.id} className="flex items-start justify-between rounded-xl border border-slate-200 bg-white p-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold">{a.nombre}</p>
+                    <button
+                      onClick={() => toggleArea(a)}
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${a.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}
+                    >
+                      {a.isActive ? '● ACTIVO' : '○ INACTIVO'}
+                    </button>
+                  </div>
+                  {a.unspsc && Array.isArray(a.unspsc) && a.unspsc.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {a.unspsc.map((c: string) => (
+                        <span key={c} className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700">{c}</span>
+                      ))}
+                    </div>
+                  )}
+                  {a.palabrasClave && <p className="mt-1 text-xs text-slate-500">🔑 {a.palabrasClave}</p>}
+                </div>
+                <button onClick={() => eliminarArea(a)} className="text-xs text-red-500 hover:text-red-700" title="Eliminar">
+                  🗑️
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Placeholders de otros tabs */}
-      {tab !== 'secop' && tab !== 'ia' && (
+      {tab !== 'secop' && tab !== 'ia' && tab !== 'areas' && (
         <div className="mt-6 rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center">
           <p className="text-slate-400">
             Módulo en construcción. Disponible en una próxima fase de desarrollo.

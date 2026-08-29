@@ -35,6 +35,7 @@ export default function DashboardPage() {
   const [filtroMax, setFiltroMax] = useState('');
   const [filtroModalidad, setFiltroModalidad] = useState('');
   const [filtroDepto, setFiltroDepto] = useState('');
+  const [useEspejo, setUseEspejo] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('prometeo_token');
@@ -61,6 +62,7 @@ export default function DashboardPage() {
       if (filtroMax) params.set('cuantiaMax', filtroMax);
       if (filtroModalidad) params.set('modalidad', filtroModalidad);
       if (filtroDepto) params.set('departamento', filtroDepto);
+      if (useEspejo) params.set('useProfiles', 'true');
       const [s, o] = await Promise.all([
         fetch(`${API_URL}/api/opportunities/stats?tenantId=${tenant}`).then((r) => r.json()),
         fetch(`${API_URL}/api/opportunities?${params}`).then((r) => r.json()),
@@ -116,13 +118,24 @@ export default function DashboardPage() {
             Espejo de SECOP II vía Datos Abiertos (SODA API). Filtrado por tu configuración UNSPSC y filtros de negocio.
           </p>
         </div>
-        <button
-          onClick={syncSecop}
-          disabled={loading || !tenantId}
-          className="rounded-lg bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
-        >
-          {loading ? 'Sincronizando...' : '↻ Sincronizar SECOP II'}
-        </button>
+        <div className="flex items-center gap-3">
+          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-600">
+            <input
+              type="checkbox"
+              checked={useEspejo}
+              onChange={(e) => { setUseEspejo(e.target.checked); setTimeout(() => loadData(tenantId), 50); }}
+              className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+            />
+            🎯 Solo mis áreas de interés
+          </label>
+          <button
+            onClick={syncSecop}
+            disabled={loading || !tenantId}
+            className="rounded-lg bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
+          >
+            {loading ? 'Sincronizando...' : '↻ Sincronizar SECOP II'}
+          </button>
+        </div>
       </div>
 
       {message && (
