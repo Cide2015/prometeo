@@ -2,32 +2,35 @@
 type: Reference
 title: Registro de Cambios Semánticos - Wiki Prometeo
 description: Bitácora cronológica inversa de modificaciones semánticas de la base de conocimiento.
-timestamp: 2026-08-28T01:00:00-05:00
+timestamp: 2026-08-29T16:30:00-05:00
 ---
 
-2026-08-28: [feat(desarrollo-modulos): Módulos 2-6 funcionales + modal registro + header + cambio password + config SECOP/IA]
-  - **Modal de registro de empresa**: /login detecta si no hay tenant y abre modal que crea empresa + admin (POST /setup/init). Verificado.
-  - **Cambio de contraseña obligatorio**: login devuelve mustChangePassword; modal en header obliga a cambiar en primer ingreso (POST /auth/change-password). Verificado.
-  - **Header tipo Argos-RMM**: navbar con avatar, rol, dropdown usuario (cambiar contraseña, logout), nombre de empresa. Carga /auth/me.
-  - **Configuración → API SECOP**: el usuario coloca endpoint SODA, datasets (p6dx-8zbt, jbjy-vk9h, rgxm-mmea), App Token de su cuenta, estados a vigilar y frecuencia. GET/PUT /config/secop.
-  - **Configuración → Modelos de IA** (patrón cide-ia-config): proveedor configurable (OpenRouter/Gemini), selector con "✨ Usar modelo por defecto", keys enmascaradas. GET/PUT /config/ia.
-  - **Módulo 1 (Inventario)**: dashboard con filtros del usuario (entidad, cuantía min/max, modalidad) + botón sincronizar SECOP con JWT. 14 oportunidades ingeridas.
-  - **Módulo 2 (RFI/RFP)**: CRUD + Aplicar (→bid) + Rechazar con elegancia (motivo + respuesta institucional). Verificado: 1 invitación creada.
-  - **Módulo 3 (Go/No-Go)**: motor financiero (liquidez 1.39, endeudamiento 0.71, ROE, ROA de la línea base CIDE), estimación de costos paramétrica, P_win ponderado. Verificado: P_win 88 → GO.
-  - **Módulo 4 (Ofertas)**: funnel Kanban 5 etapas (Borrador→Análisis→Documental→Firma→Presentada), crear oferta desde oportunidad, mover fase.
-  - **Módulo 5 (Ganadas)**: crear proyecto desde oferta presentada, hitos automáticos (acta inicio, entregables, liquidación), documentos contractuales.
-  - **Módulo 6 (Financiero)**: registro flujo de caja (ingreso/egreso), resumen márgenes reales vs proyectados, liquidación impositiva (Retefuente 2.5%, ReteICA 0.4%, ReteIVA, estampillas).
-  - **QA funcional (cide-pruebas-funcionales)**: login→me→config secop→sync SECOP→RFI/RFP→análisis→ofertas→proyectos→financiero→config IA. Todos OK.
-  - Pitfalls resueltos: ConfigModule duplicado (alias EnvConfigModule), JwtService global vía AuthModule @Global, controllers necesitan método resolve(), relaciones Prisma Analysis-bid (bidId @unique) y RfiRfp-analyses.
+2026-08-29: [feat(enriquecimiento): Benchmark alicia.services + diferenciadores A-E implementados]
+  - **Benchmark**: alicia.services (landing + blog) + podcast YouTube nyjc_eIMGcU (Gabriel, cofundador). Documentado en wiki/sources/benchmark_alicia.md.
+  - **Nivelación con Alicia (P1-P3)**:
+    - P1 Búsqueda por palabras clave (q) + filtros avanzados (cuantía min/max, departamento) en /api/opportunities. Verificado: 8 resultados para "energía".
+    - P1 Fechas clave / alertas de vencimiento: /api/insights/fechas-clave (cierres en 30 días + próximas 24h).
+    - P1 Notificaciones diarias por correo: /api/notifications/diaria (resumen por perfiles de búsqueda, log en BD).
+    - P2 Perfiles de búsqueda (hasta 3 por tenant): /api/search-profiles CRUD. Verificado: perfil "Línea Energía" creado.
+    - P2 Resumen IA del pliego: /api/pliegos/resumen (requisitos habilitantes + indicadores financieros).
+    - P3 Análisis de competencia: /api/insights/competencia (dataset jbjy-vk9h, agregado por proveedor).
+    - P3 Sugerencia de uniones temporales: /api/insights/uniones-temporales (cuando capacidad < 100%).
+  - **Diferenciadores A-E**:
+    - B Agente Drafter: /api/drafter (carta presentación, formato experiencia, inhabilidades) + UI en ofertas. Verificado.
+    - C Monitor de adendas: /api/adendas (check 30min + alertas, modelo AdendaAlert).
+    - D Copilot RAG: /api/pliegos (indexar PDF, chat con citas, resumen). pgvector listo para embeddings reales.
+    - E BI ejecutivo: /api/insights/bi (pipeline, win-rate, funnel, Go/No-Go, rentabilidad).
+  - **Frontend**: nueva página /dashboard/insights con 8 tabs (BI, Fechas, Competencia, Uniones, Copilot, Perfiles, Adendas, Notificaciones) + Drafter en ofertas + búsqueda keywords en inventario. Verificado HTTP 200.
+  - **Modelos Prisma nuevos**: SearchProfile, PliegoDocument (pgvector), NotificationLog, AdendaAlert.
+  - QA funcional (cide-pruebas-funcionales): perfiles ✅, BI ✅, fechas ✅, competencia ✅, uniones ✅, copilot ✅, drafter ✅, notificaciones ✅ (9 relevantes), adendas ✅, keywords ✅, sync SECOP ✅ (14).
+  - Pitfall: bootstrap.ts escribía sodaEndpoint con .json incrustado → corregido a endpoint base + datasets.
 
-2026-08-27: [feat(secop+auth): Login real, registro inicial de empresa desde cero y conexión SECOP II]
-  - Registro inicial (estilo Argos-RMM): bootstrap.ts limpia BD y crea tenant CIDE SAS + admin@cidesas.com + 15 UNSPSC + API key Hermes (guardada en /opt/data/keys/hermes_prometeo.txt).
-  - Login real: POST /api/auth/login (JWT). Dashboard con stats + tabla oportunidades + botón sincronizar.
-  - SECOP II: SecopService ingesta SODA p6dx-8zbt filtrado por UNSPSC del tenant (14 oportunidades).
-  - Pitfalls: esquema real dataset (estado_del_procedimiento, precio_base), match por primeros 4 dígitos UNSPSC, n8n BD propia.
+2026-08-28: [feat(desarrollo-modulos): Módulos 2-6 funcionales + modal registro + header + cambio password + config SECOP/IA]
+  - Modal registro empresa, cambio contraseña obligatorio, header tipo Argos, config SECOP por usuario (endpoint/dataset/token del video guía), tab Modelos de IA (patrón cide-ia-config).
+  - Módulos 2-6 completos (RFI/RFP, Go/No-Go con P_win 88→GO, Ofertas funnel, Ganadas con hitos, Financiero con impuestos).
 
 2026-08-27: [deploy(prometeo): PUBLICADO en producción https://prometeo.cidesolutions.com]
-  - Túnel Cloudflare (creado por Mario) + proxy host NPM id=3 + 7 contenedores Up. Verificado 200.
+  - Túnel Cloudflare + proxy NPM + 7 contenedores. APP004 en Admin con 3 planes. Login real + SECOP II (14 oportunidades).
 
 2026-08-27: [init(prometeo): Fundación de la wiki OKF y arquitectura base]
-  - Fusión de specs (SRS + PDF), stack decidido (Next.js + NestJS + PG16/pgvector + Redis7 + n8n + Nginx), APP004 en Admin con 3 planes.
+  - Fusión de specs (SRS + PDF), stack decidido (Next.js + NestJS + PG16/pgvector + Redis7 + n8n + Nginx).
