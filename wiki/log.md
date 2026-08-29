@@ -2,25 +2,21 @@
 type: Reference
 title: Registro de Cambios Semánticos - Wiki Prometeo
 description: Bitácora cronológica inversa de modificaciones semánticas de la base de conocimiento.
-timestamp: 2026-08-29T18:45:00-05:00
+timestamp: 2026-08-29T19:50:00-05:00
 ---
 
+2026-08-29: [fix(config): Restaurado tab Áreas de Interés + validación de conexión SECOP online + flujo concatenado]
+  - **Tab "Áreas de Interés" restaurado** en Configuración (se había perdido al reescribir la página): CRUD completo (crear con nombre + códigos UNSPSC + palabras clave, activar/desactivar, eliminar, máx 3 por tenant).
+  - **Tab API SECOP → validación de conexión online**: reemplazada la consulta cruda a la tabla de procesos SECOP por el endpoint `GET /api/config/secop/test` que verifica la conexión a Datos Abiertos Colombia (endpoint + dataset configurados). Muestra: 🟢 ONLINE / 🔴 OFFLINE, mensaje, latencia ms, endpoint, estado del App Token.
+  - **Inventario de Oportunidades = 2º paso del flujo concatenado**: ahora filtra por áreas de interés ACTIVAS por defecto (`useProfiles=true`). Flujo confirmado por Mario: **Registro → Áreas de Interés → Inventario → Análisis → Ofertas → Ganadas → Financiero**. Mensaje guía del flujo en el header.
+  - QA funcional: conexión SECOP ONLINE (278ms) ✓, área "Energía" creada ✓, sync SECOP 14 oportunidades ✓, inventario con espejo filtra 14→1 ✓, bundle actualizado (tab restaurado + validación) ✓.
+  - BD dejada vacía para prueba desde registro (setup/status → initialized:false).
+
 2026-08-29: [feat(configuracion): Tabs Empresa, API SECOP mejorado, fix persistencia IA, Usuarios y Roles, API propia]
-  - **Tab Empresa** (patrón Fenix-SGCN): datos importantes de la empresa (sector, representante legal, dirección, ciudad, teléfono, correo, web, descripción). GET/PUT /api/config/empresa. Verificado: sector + representante persisten.
-  - **Tab API SECOP mejorado**: en la parte inferior muestra los códigos UNSPSC de las **Áreas de Interés** definidas (de search_profiles), con **selector** de códigos para el filtro espejo. Añadida **tabla de procesos SECOP II en vivo** desde Datos Abiertos (dataset p6dx-8zbt) con filtro por entidad. Verificado: unspscAreas=['81111800','81111500'] desde área "Energía".
-  - **Fix persistencia key OpenRouter/Gemini (BUG)**: el config.controller.ts tenía `openrouterApiKey: *** literal (líneas 152-153) en vez de `nextOpenrouter`/`nextGemini` → la key NO persistía. Corregido. Verificado: keySet=True, masked='sk-o••••cdef', se conserva al guardar vacío.
-  - **Tab Usuarios y Roles** (patrón Argos-RMM): CRUD usuarios con roles (admin, evaluador_tecnico, evaluador_financiero, operador_proyecto, auditor). GET/POST/PUT/DELETE /api/config/users. Verificado: usuario evaluador_tecnico creado.
-  - **Tab API Propia** (patrón Argos-RMM): crear/revocar API keys (keyHash sha256, prefix pko_, raw se muestra UNA sola vez). GET/POST/DELETE /api/config/api-keys. Verificado: key 'pko_22d57361.5a...' creada.
-  - Frontend: configuracion/page.tsx reescrito con 5 tabs. Verificado HTTP 200 y strings en bundle.
-  - QA funcional completo (cide-pruebas-funcionales): los 5 tabs ✓.
+  - Tab Empresa (patrón Fenix-SGCN), fix persistencia key OpenRouter/Gemini (openrouterApiKey literal *** → nextOpenrouter), tab Usuarios y Roles + API propia (patrón Argos-RMM).
 
-2026-08-29: [feat(espejo-secop): Áreas de interés espejo SECOP + limpieza BD para prueba desde cero]
-  - Configuración → tab Áreas de Interés (espejo SECOP): crear área con UNSPSC, activar/desactivar, eliminar (máx 3).
-  - Tablero → toggle "Solo mis áreas de interés" (useProfiles=true) filtra por UNSPSC de áreas activas.
-
+2026-08-29: [feat(espejo-secop): Áreas de interés espejo SECOP + limpieza BD]
 2026-08-29: [feat(enriquecimiento): Benchmark alicia.services + diferenciadores A-E]
-  - P1-P3 + Dif B-E (Drafter, adendas, Copilot RAG, BI) + página Insights & BI.
-
 2026-08-28: [feat(desarrollo-modulos): Módulos 2-6 + modal registro + header + cambio password]
 2026-08-27: [deploy(prometeo): PUBLICADO en producción https://prometeo.cidesolutions.com]
 2026-08-27: [init(prometeo): Fundación de la wiki OKF]
