@@ -50,9 +50,27 @@ export class SecopService {
     if (filtros.departamento) whereClauses.push(`departamento_entidad='${filtros.departamento}'`);
     if (filtros.modalidad) whereClauses.push(`modalidad_de_contratacion='${filtros.modalidad}'`);
 
+    // Áreas de interés ACTIVAS del tenant: sus códigos UNSPSC (segmento 4 dígitos)
+    const areas = await this.prisma.searchProfile.findMany({
+      where: { tenantId, isActive: true },
+    });
+    const areaCodigos = areas.flatMap((a) => (a.unspsc as string[]) || []);
+    // Segmentos únicos (4 primeros dígitos) para acotar la consulta a los intereses del tenant
+    const segmentos = [...new Set(areaCodigos.map((c) => c.slice(0, 4)))];
+
+    if (segmentos.length > 0) {
+      // Acotar por categoría principal O categorías adicionales (formato "V1.81111500")
+      const catOr = segmentos
+        .map((s) => `codigo_principal_de_categoria like 'V1.${s}%'`)
+        .join(' OR ');
+      const catAdOr = segmentos
+        .map((s) => `categorias_adicionales like '%${s}%'`)
+        .join(' OR ');
+      whereClauses.push(`(${catOr} OR ${catAdOr})`);
+    }
+
     const where = whereClauses.join(' AND ');
-    // Consulta ABIERTA: traer hasta 1000 procesos vigentes ordenados por fecha de publicación DESC
-    // (los más recientes), para que el filtro por áreas de interés del tenant tenga suficientes candidatos.
+    // Consulta acotada por áreas de interés del tenant (hasta 1000 procesos vigentes recientes).
     // $limit máximo por request SODA es 1000; para más se paginaría con $offset.
     const url = `${sodaEndpoint}/${dataset}.json?$where=${encodeURIComponent(where)}&$limit=1000&$order=fecha_de_publicacion_del DESC`;
     const res = await fetch(url, {
