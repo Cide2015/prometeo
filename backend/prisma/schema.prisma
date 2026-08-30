@@ -85,6 +85,7 @@ model Opportunity {
   cuantiaCop  Decimal? @map("cuantia_cop") @db.Decimal(18, 2)
   fechaCierre DateTime? @map("fecha_cierre")
   estado      String   @default("disponible") // disponible | aplicada | descartada | borrada
+  favorito    Boolean  @default(false) @map("favorito")
   metadataJson Json?   @map("metadata_json") @db.JsonB
   createdAt   DateTime @default(now()) @map("created_at")
 

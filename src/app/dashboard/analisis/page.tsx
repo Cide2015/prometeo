@@ -18,6 +18,7 @@ interface Analysis {
 
 export default function AnalisisPage() {
   const [items, setItems] = useState<Analysis[]>([]);
+  const [pendientes, setPendientes] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [opportunities, setOpportunities] = useState<any[]>([]);
@@ -35,6 +36,7 @@ export default function AnalisisPage() {
       const r = await fetch(`${API_URL}/api/analysis`, { headers: { Authorization: `Bearer ${token}` } });
       const d = await r.json();
       setItems(d.items || []);
+      setPendientes(d.pendientes || []);
     } finally { setLoading(false); }
   }
 
@@ -45,6 +47,32 @@ export default function AnalisisPage() {
       const d = await r.json();
       setOpportunities((d.items || []).filter((o: any) => o.estado === 'disponible'));
     } catch {}
+  }
+
+  async function analizarOpp(id: string) {
+    setLoading(true);
+    setMessage('');
+    const token = localStorage.getItem('prometeo_token');
+    try {
+      const r = await fetch(`${API_URL}/api/analysis`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          opportunityId: id,
+          cumplimientoTecnico: Number(form.cumplimientoTecnico),
+          capacidad: Number(form.capacidad),
+          margenObjetivoPct: Number(form.margenObjetivoPct),
+        }),
+      });
+      const d = await r.json();
+      if (d.success) {
+        setMessage(`Análisis completado: ${d.decision.toUpperCase()} · P_win ${d.pWin}%`);
+        load();
+      } else {
+        setMessage(d.error || d.message || 'Error al analizar');
+      }
+    } catch { setMessage('Error de conexión'); }
+    finally { setLoading(false); }
   }
 
   async function analizar(e: React.FormEvent) {
@@ -99,6 +127,39 @@ export default function AnalisisPage() {
       </div>
 
       {message && <div className="mt-4 rounded-lg bg-sky-50 px-4 py-2 text-sm text-sky-800">{message}</div>}
+
+      {/* ⭐ Oportunidades favoritas pendientes de analizar */}
+      {pendientes.length > 0 && (
+        <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-5">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-amber-800">⭐ Favoritas por analizar ({pendientes.length})</h3>
+            <span className="text-xs text-amber-600">Márcadas en el Inventario de Oportunidades</span>
+          </div>
+          <div className="mt-3 space-y-2">
+            {pendientes.map((o) => (
+              <div key={o.id} className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-white px-4 py-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="rounded bg-amber-100 px-2 py-0.5 font-mono text-xs text-amber-800">{o.secopId || '—'}</span>
+                    <span className="truncate text-sm font-medium">{o.entidad || '—'}</span>
+                  </div>
+                  <p className="mt-0.5 truncate text-xs text-slate-500">{o.objeto || ''}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <span className="text-sm font-semibold text-slate-700">{fmtCOP(o.cuantiaCop)}</span>
+                  <button
+                    onClick={() => analizarOpp(o.id)}
+                    disabled={loading}
+                    className="rounded-lg bg-violet-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
+                  >
+                    🧠 Analizar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <form onSubmit={analizar} className="mt-6 rounded-xl border border-slate-200 bg-white p-6">
         <h3 className="font-semibold">Analizar oportunidad</h3>

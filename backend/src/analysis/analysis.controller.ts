@@ -30,7 +30,23 @@ export class AnalysisController {
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
-    return { items, total: items.length };
+
+    // Oportunidades favoritas SIN análisis aún → pendientes de analizar
+    const analyzedOppIds = items
+      .filter((a) => a.opportunityId)
+      .map((a) => a.opportunityId as string);
+    const favoritas = await this.prisma.opportunity.findMany({
+      where: {
+        tenantId,
+        favorito: true,
+        estado: 'disponible',
+        ...(analyzedOppIds.length ? { id: { notIn: analyzedOppIds } } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    return { items, total: items.length, pendientes: favoritas, totalPendientes: favoritas.length };
   }
 
   /** Ejecuta el motor Go/No-Go sobre una oportunidad o RFI/RFP */
