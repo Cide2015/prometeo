@@ -65,6 +65,8 @@ export default function DashboardPage() {
   async function loadData(tenant: string) {
     setLoading(true);
     try {
+      const token = localStorage.getItem('prometeo_token');
+      const authHeaders = { Authorization: `Bearer ${token}` };
       const params = new URLSearchParams({ tenantId: tenant });
       if (filtroEntidad) params.set('entidad', filtroEntidad);
       if (filtroQ) params.set('q', filtroQ);
@@ -74,8 +76,8 @@ export default function DashboardPage() {
       if (filtroDepto) params.set('departamento', filtroDepto);
       if (useEspejo) params.set('useProfiles', 'true');
       const [s, o] = await Promise.all([
-        fetch(`${API_URL}/api/opportunities/stats?tenantId=${tenant}`).then((r) => r.json()),
-        fetch(`${API_URL}/api/opportunities?${params}`).then((r) => r.json()),
+        fetch(`${API_URL}/api/opportunities/stats?tenantId=${tenant}`, { headers: authHeaders }).then((r) => r.json()),
+        fetch(`${API_URL}/api/opportunities?${params}`, { headers: authHeaders }).then((r) => r.json()),
       ]);
       setStats(s);
       setItems(o.items || []);
