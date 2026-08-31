@@ -13,6 +13,7 @@ interface Opportunity {
   fechaCierre?: string;
   estado: string;
   favorito?: boolean;
+  createdAt?: string;
   metadataJson?: any;
 }
 
@@ -416,6 +417,7 @@ export default function DashboardPage() {
               <th className="cursor-pointer select-none px-3 py-3 hover:text-violet-700" onClick={() => ordenar('fechaCierre')}>
                 Últ. publicación {sortBy === 'fechaCierre' && (sortOrder === 'asc' ? '▲' : '▼')}
               </th>
+              <th className="px-3 py-3">Ingresado</th>
               <th className="px-3 py-3">Modalidad</th>
               <th className="px-3 py-3">Estado</th>
             </tr>
@@ -423,7 +425,7 @@ export default function DashboardPage() {
           <tbody>
             {items.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-10 text-center text-slate-400">
+                <td colSpan={10} className="px-4 py-10 text-center text-slate-400">
                   {loading ? 'Cargando...' : 'Sin resultados. Ajusta los filtros o pulsa "Sincronizar SECOP II".'}
                 </td>
               </tr>
@@ -453,6 +455,7 @@ export default function DashboardPage() {
                 <td className="px-3 py-3 whitespace-nowrap font-semibold text-slate-800">{fmtCOP(o.cuantiaCop)}</td>
                 <td className="px-3 py-3 whitespace-nowrap">{fmtFecha(md(o).fechaPublicacion)}</td>
                 <td className="px-3 py-3 whitespace-nowrap">{fmtFecha(md(o).fechaUltimaPublicacion)}</td>
+                <td className="px-3 py-3 whitespace-nowrap">{fmtFecha(o.createdAt)}</td>
                 <td className="px-3 py-3">
                   <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-medium text-sky-700">
                     {md(o).modalidad || '—'}
@@ -599,6 +602,10 @@ export default function DashboardPage() {
                   <div>
                     <p className="text-xs text-slate-400">Fase 3</p>
                     <p className="text-sm font-semibold">{fmtFecha(md(detalle).fechaPublicacionFase3)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400">Ingresado a Prometeo</p>
+                    <p className="text-sm font-semibold">{fmtFecha(detalle.createdAt)}</p>
                   </div>
                 </div>
               </div>

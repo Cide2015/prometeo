@@ -179,7 +179,9 @@ export class SecopService {
             ? parseFloat(it.precio_base.replace(/[^\d.-]/g, ''))
             : Number(it.precio_base || 0)) !== Number(existing.cuantiaCop || 0) ||
           (it.modalidad_de_contratacion || '') !== (oldMetadata.modalidad || '') ||
-          (it.fecha_de_publicacion_del || null) !== (oldMetadata.fechaPublicacion || null);
+          (it.fecha_de_publicacion_del || null) !== (oldMetadata.fechaPublicacion || null) ||
+          // Migración: registros antiguos sin metadata enriquecido se actualizan una vez
+          oldMetadata.fechaPublicacion === undefined;
 
         if (hayCambios) {
           // Solo actualizar si hubo cambios reales — NUNCA tocar `favorito`
