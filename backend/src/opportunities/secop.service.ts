@@ -15,9 +15,22 @@ interface SecopProcess {
   codigo_principal_de_categoria?: string;
   categorias_adicionales?: string;
   fecha_de_publicacion_del?: string;
+  fecha_de_ultima_publicaci?: string;
+  fecha_de_publicacion_fase_3?: string;
   urlproceso?: string;
   adjudicado?: string;
   estado_de_apertura_del_proceso?: string;
+  estado_resumen?: string;
+  tipo_de_contrato?: string;
+  subtipo_de_contrato?: string;
+  duracion?: string;
+  unidad_de_duracion?: string;
+  numero_de_lotes?: string;
+  respuestas_al_procedimiento?: string;
+  visualizaciones_del?: string;
+  codigo_entidad?: string;
+  nit_entidad?: string;
+  nombre_de_la_unidad_de?: string;
 }
 
 @Injectable()
@@ -124,28 +137,61 @@ export class SecopService {
         where: { tenantId, secopId: it.referencia_del_proceso || undefined },
       });
 
+      // Metadata enriquecido (se guarda igual en creación y actualización)
+      const esActiva = it.adjudicado === 'No' && it.estado_de_apertura_del_proceso === 'Abierto';
+      const metadataNuevo = {
+        unspsc: itemCodes,
+        modalidad: it.modalidad_de_contratacion,
+        departamento: it.departamento_entidad,
+        ciudad: it.ciudad_entidad,
+        fase: it.fase,
+        url: it.urlproceso,
+        adjudicado: it.adjudicado,
+        estadoApertura: it.estado_de_apertura_del_proceso,
+        activa: esActiva,
+        // Fechas importantes
+        fechaPublicacion: it.fecha_de_publicacion_del || null,
+        fechaUltimaPublicacion: it.fecha_de_ultima_publicaci || null,
+        fechaPublicacionFase3: it.fecha_de_publicacion_fase_3 || null,
+        // Detalle ampliado para el modal
+        estadoResumen: it.estado_resumen,
+        tipoContrato: it.tipo_de_contrato,
+        subtipoContrato: it.subtipo_de_contrato,
+        duracion: it.duracion,
+        unidadDuracion: it.unidad_de_duracion,
+        numeroLotes: it.numero_de_lotes,
+        respuestas: it.respuestas_al_procedimiento,
+        visualizaciones: it.visualizaciones_del,
+        codigoEntidad: it.codigo_entidad,
+        nitEntidad: it.nit_entidad,
+        unidadCompra: it.nombre_de_la_unidad_de,
+      };
+
       if (existing) {
-        // Reconciliación: si el proceso existe, sincronizar su estado con su actividad real.
+        // Reconciliación: sincronizar estado con su actividad real PERO conservar favorito.
         const esActiva = it.adjudicado === 'No' && it.estado_de_apertura_del_proceso === 'Abierto';
         const estadoCorrecto = esActiva ? 'disponible' : 'descartada';
-        if (existing.estado !== estadoCorrecto) {
-          await this.prisma.opportunity.update({
-            where: { id: existing.id },
-            data: { estado: estadoCorrecto },
-          });
-        }
-        // Actualizar metadata de actividad si no estaba (migración de registros antiguos)
-        const metadata = (existing.metadataJson as any) || {};
-        if (metadata.activa === undefined || metadata.adjudicado === undefined) {
+        const oldMetadata = (existing.metadataJson as any) || {};
+        const hayCambios =
+          existing.estado !== estadoCorrecto ||
+          (it.descripcion_del_proceso || it.nombre_del_procedimiento) !== existing.objeto ||
+          (typeof it.precio_base === 'string'
+            ? parseFloat(it.precio_base.replace(/[^\d.-]/g, ''))
+            : Number(it.precio_base || 0)) !== Number(existing.cuantiaCop || 0) ||
+          (it.modalidad_de_contratacion || '') !== (oldMetadata.modalidad || '') ||
+          (it.fecha_de_publicacion_del || null) !== (oldMetadata.fechaPublicacion || null);
+
+        if (hayCambios) {
+          // Solo actualizar si hubo cambios reales — NUNCA tocar `favorito`
           await this.prisma.opportunity.update({
             where: { id: existing.id },
             data: {
-              metadataJson: {
-                ...metadata,
-                adjudicado: it.adjudicado,
-                estadoApertura: it.estado_de_apertura_del_proceso,
-                activa: esActiva,
-              },
+              entidad: it.entidad,
+              objeto: it.descripcion_del_proceso || it.nombre_del_procedimiento,
+              cuantiaCop: isNaN(cuantia) ? null : cuantia,
+              fechaCierre: it.fecha_de_publicacion_del ? new Date(it.fecha_de_publicacion_del) : null,
+              estado: estadoCorrecto,
+              metadataJson: { ...oldMetadata, ...metadataNuevo },
             },
           });
         }
@@ -163,17 +209,7 @@ export class SecopService {
           cuantiaCop: isNaN(cuantia) ? null : cuantia,
           fechaCierre: it.fecha_de_publicacion_del ? new Date(it.fecha_de_publicacion_del) : null,
           estado: esActivaNueva ? 'disponible' : 'descartada',
-          metadataJson: {
-            unspsc: itemCodes,
-            modalidad: it.modalidad_de_contratacion,
-            departamento: it.departamento_entidad,
-            ciudad: it.ciudad_entidad,
-            fase: it.fase,
-            url: it.urlproceso,
-            adjudicado: it.adjudicado,
-            estadoApertura: it.estado_de_apertura_del_proceso,
-            activa: esActivaNueva,
-          },
+          metadataJson: metadataNuevo,
         },
       });
       ingested++;

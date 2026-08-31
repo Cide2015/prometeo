@@ -149,6 +149,14 @@ export class OpportunitiesController {
       }))
       .filter((g) => g.items.length > 0);
 
+    // Modalidades reales del tenant (para poblar el filtro con los valores exactos del listado)
+    const modalidadesRaw = await this.prisma.$queryRawUnsafe<{ modalidad: string }[]>(
+      `SELECT DISTINCT metadata_json->>'modalidad' AS modalidad FROM opportunities
+       WHERE tenant_id = '${tenantId}' AND estado = 'disponible' AND metadata_json->>'modalidad' IS NOT NULL
+       ORDER BY 1`,
+    );
+    const modalidades = modalidadesRaw.map((r) => r.modalidad).filter(Boolean);
+
     return {
       items,
       total,
@@ -157,6 +165,7 @@ export class OpportunitiesController {
       totalPages,
       areas,
       grupos,
+      modalidades,
       useEspejo: useProfiles === 'true',
       sortBy: sortField,
       sortOrder: sortDir,
